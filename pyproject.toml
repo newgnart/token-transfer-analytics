@@ -1,5 +1,5 @@
 [project]
-name = "onchaindata"
+name = "stables-analytics"
 version = "0.1.0"
 description = "Capstone project package for FA DAE2"
 readme = "README.md"
@@ -24,14 +24,6 @@ dependencies = [
     "webdriver-manager>=4.0.2",
 ]
 
-[tool.uv.sources]
-onchaindata = { path = "./src" }
 
 [dependency-groups]
-dev = [
-    "sqlfluff>=3.5.0",
-    "sqlfluff-templater-dbt>=3.5.0",
-]
-
-[tool.uv]
-package = true
+dev = ["sqlfluff>=3.5.0", "sqlfluff-templater-dbt>=3.5.0"]

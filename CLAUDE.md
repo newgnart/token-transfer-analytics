@@ -4,121 +4,94 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a capstone project for FA DAE2 focused on Ethereum blockchain data extraction and transformation. The project extracts smart contract logs and transactions from Etherscan API, loads them into PostgreSQL, and transforms them using dbt.
+Stables Analytics is a capstone project for Foundry AI Academy (DAE2) - a production-grade ELT pipeline for on-chain stablecoin analytics. The project extracts blockchain data via HyperSync GraphQL API, loads it into PostgreSQL/Snowflake, and transforms it using dbt.
 
 ## Architecture
 
-The project follows an ELT (Extract, Load, Transform) pipeline:
+**Pipeline**: `HyperSync GraphQL → Parquet Files → PostgreSQL/Snowflake → dbt → Analytics Tables`
 
-### 1. Extract Layer (`scripts/el/`)
-- **Primary script**: `extract_etherscan.py` - Extracts logs and transactions from Etherscan API
-- Uses the `onchaindata.data_extraction.etherscan` module with `EtherscanClient`
-- Supports multiple blockchain networks via chainid mapping in `src/onchaindata/config/chainid.json`
-- Features automatic retry logic for failed block ranges with exponential backoff (reduces chunk size by 10x)
-- Data stored as Parquet files in `.data/raw/` directory
-- Error tracking in `logging/extract_error/` with automatic retry mechanism that logs failed ranges to CSV
-- Supports K/M/B suffixes for block numbers (e.g., '18.5M' = 18,500,000)
-- Additional extraction capabilities: `extract_graphql.py` for GraphQL-based extraction
+The project follows an ELT (Extract, Load, Transform) pattern with three main components:
 
-### 2. Load Layer (`scripts/el/`)
-- **load.py**: Unified loader script supporting both PostgreSQL and Snowflake
-- Uses `onchaindata.data_pipeline.Loader` class with pluggable database clients
-- Takes arguments: `-f` (file path), `-c` (client: postgres/snowflake), `-s` (schema), `-t` (table), `-w` (write disposition: append/replace/merge)
-- Database clients in `src/onchaindata/utils/`: `PostgresClient`, `SnowflakeClient`
+### 1. Load Layer (`scripts/load_file.py`)
+Unified loader script supporting both PostgreSQL and Snowflake with pluggable database clients.
 
-### 3. Transform Layer (dbt)
-- **Location**: `dbt_project/`
-- Standard dbt project structure with models organized by layer:
-  - `models/01_staging/`: Raw data cleanup (e.g., `stg_logs_decoded.sql`)
-  - `models/intermediate/`: Business logic transformations
-  - `models/marts/`: Final analytics tables
-- Materialization strategy:
-  - staging: `view`
-  - intermediate: `ephemeral`
-  - marts: `table`
-- Shared macros in `dbt_project/macros/ethereum_macros.sql`:
-  - `uint256_to_address`: Extracts Ethereum addresses from uint256 hex strings
-  - `uint256_to_numeric`: Converts uint256 hex to numeric values
-- Sources defined in `models/01_staging/sources.yml` (references `raw` schema)
+**Key Features:**
+- Supports Parquet and CSV files
+- Three write modes: `append`, `replace`, `merge` (upsert)
+- Uses DLT (data load tool) for efficient loading
+- Database clients in `scripts/utils/database_client.py`: `PostgresClient`, `SnowflakeClient`
+
+**Arguments:**
+- `-f`: File path (Parquet or CSV)
+- `-c`: Client (`postgres` or `snowflake`)
+- `-s`: Schema name
+- `-t`: Table name
+- `-w`: Write disposition (`append`/`replace`/`merge`)
+- `-k`: Primary key columns for merge (comma-separated, e.g., `contract_address,chain`)
+- `--stage`: Upload to Snowflake stage instead of loading (Snowflake only)
+- `--stage_name`: Snowflake stage name when using `--stage`
+
+### 2. Transform Layer (dbt)
+**Location**: `dbt_project/`
+
+Standard dbt project with three-tier modeling:
+- `models/01_staging/`: Raw data cleanup (views, schema: `staging`)
+- `models/02_intermediate/`: Business logic (ephemeral, not materialized)
+- `models/03_mart/`: Final analytics tables (tables, schema: `mart`)
+
+**Key Features:**
+- SCD Type 2 support via snapshots (`snapshots/snap_stablecoin.sql`)
+- Custom macros in `macros/` (e.g., Ethereum address parsing)
+- Sources defined in `01_staging/sources.yml` (references `raw` schema)
 - Configuration: [dbt_project.yml](dbt_project/dbt_project.yml), [profiles.yml](dbt_project/profiles.yml)
 
-### 4. Package Structure (`src/onchaindata/`)
-Reusable Python package with modules:
-- `data_extraction/`:
-  - `etherscan.py`: EtherscanClient with rate limiting
-  - `graphql.py`: GraphQL-based extraction
-  - `rate_limiter.py`: Rate limiting utilities
-  - `base.py`: Base classes for API clients
-- `data_pipeline/`:
-  - `loaders.py`: Loader class for database operations
-- `utils/`:
-  - `postgres_client.py`: PostgreSQL client with connection pooling
-  - `snowflake_client.py`: Snowflake client
-  - `chain.py`: Chain-related utilities
-  - `base_client.py`: Base database client interface
-- `config/`: Configuration files (chainid.json)
+### 3. Database Clients (`scripts/utils/database_client.py`)
+Pluggable database client architecture with base class pattern:
+
+- **BaseDatabaseClient**: Abstract base class defining common interface
+- **PostgresClient**: PostgreSQL client using `psycopg` with DLT integration
+- **SnowflakeClient**: Snowflake client with key-pair authentication and DLT integration
+
+Both clients support:
+- `from_env()`: Create client from environment variables
+- `get_connection()`: Context manager for database connections
+- `get_dlt_destination()`: DLT destination configuration
 
 ## Development Commands
 
 ### Environment Setup
 ```bash
-# Create Docker network (first time only)
-docker network create fa-dae2-capstone_kafka_network
-
 # Start PostgreSQL container
 docker-compose up -d
 
-# Install dependencies using uv
+# Install dependencies
 uv sync
 
-# Set up environment variables
+# Configure environment variables
 cp .env.example .env
-export $(cat .env | xargs)
-
-# Initialize database schema (if needed)
-./scripts/sql_pg.sh ./scripts/sql/init.sql
-```
-
-### Data Extraction
-```bash
-# Extract logs and transactions for a specific contract address
-# Supports K/M/B suffixes for block numbers (e.g., '18.5M')
-uv run python scripts/el/extract_etherscan.py \
-  -c ethereum \
-  -a 0x02950460e2b9529d0e00284a5fa2d7bdf3fa4d72 \
-  --logs --transactions \
-  --from_block 18.5M --to_block 20M \
-  -v  # verbose logging
-
-# Extract data from last N days
-uv run python scripts/el/extract_etherscan.py \
-  -a 0x02950460e2b9529d0e00284a5fa2d7bdf3fa4d72 \
-  --logs --transactions \
-  --last_n_days 7
-
-# Logging levels: no flag (WARNING), -v (INFO), -vv (DEBUG)
+# Edit .env with your credentials
 ```
 
 ### Data Loading
 ```bash
 # Load Parquet file to PostgreSQL (append mode)
-uv run python scripts/el/load.py \
-  -f .data/raw/ethereum_0xaddress_logs_18500000_20000000.parquet \
+uv run python scripts/load_file.py \
+  -f .data/raw/data_12345678.parquet \
   -c postgres \
   -s raw \
-  -t logs \
+  -t raw_transfer \
   -w append
 
 # Load CSV with full replacement
-uv run python scripts/el/load.py \
+uv run python scripts/load_file.py \
   -f .data/raw/stablecoins.csv \
   -c postgres \
   -s raw \
   -t raw_stablecoin \
   -w replace
 
-# Load CSV with merge/upsert (only updated rows needed)
-uv run python scripts/el/load.py \
+# Load CSV with merge/upsert (only updated rows)
+uv run python scripts/load_file.py \
   -f .data/raw/stablecoins_updates.csv \
   -c postgres \
   -s raw \
@@ -127,155 +100,134 @@ uv run python scripts/el/load.py \
   -k contract_address,chain
 
 # Load to Snowflake (requires SNOWFLAKE_* env vars)
-uv run python scripts/el/load.py \
-  -f .data/raw/ethereum_0xaddress_logs_18500000_20000000.parquet \
+uv run python scripts/load_file.py \
+  -f .data/raw/data_12345678.parquet \
   -c snowflake \
   -s raw \
-  -t logs \
+  -t raw_transfer \
   -w append
+
+# Upload file to Snowflake stage (without loading to table)
+uv run python scripts/load_file.py \
+  -f .data/raw/data_12345678.parquet \
+  -c snowflake \
+  -s raw \
+  --stage \
+  --stage_name my_stage
 ```
 
 ### dbt Operations
 ```bash
-# Run dbt models
-./scripts/dbt.sh run
+# Navigate to dbt project directory
+cd dbt_project
+
+# Run all models
+dbt run
 
 # Run specific model
-./scripts/dbt.sh run --select stg_logs_decoded
+dbt run --select stg_transfer
+
+# Run models by folder
+dbt run --select 01_staging.*
+dbt run --select 03_mart.*
 
 # Run tests
-./scripts/dbt.sh test
+dbt test
 
-# Other dbt commands
-./scripts/dbt.sh compile                    # Compile models
-./scripts/dbt.sh docs generate              # Generate documentation
-./scripts/dbt.sh run --select staging.*     # Run all staging models
-./scripts/dbt.sh deps                       # Install dbt packages
-```
+# Create/update snapshots (SCD Type 2)
+dbt snapshot
 
-### SQL Operations
-```bash
-# Run SQL scripts directly against PostgreSQL
-./scripts/sql_pg.sh ./scripts/sql/init.sql
+# Install dbt packages
+dbt deps
 
-# Ad-hoc queries
-./scripts/sql_pg.sh ./scripts/sql/ad_hoc.sql
+# Compile models (check SQL without running)
+dbt compile
+
+# Generate and serve documentation
+dbt docs generate
+dbt docs serve
 ```
 
 ## Environment Variables
 
-Required variables (see `.env.example`):
+Required variables (see [.env.example](.env.example)):
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-- `DB_SCHEMA`: Default schema for operations (e.g., `fa02_staging`)
+- `DB_SCHEMA`: Default schema for operations
 - `KAFKA_NETWORK_NAME`: Docker network name
-- `ETHERSCAN_API_KEY`: For Etherscan API access
 
 Optional (for Snowflake):
 - `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`
-- `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_PRIVATE_KEY_FILE_PATH`
+- `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`
+- `SNOWFLAKE_PRIVATE_KEY_FILE`: Path to private key file (.p8 or .pem) for local development
 
 ## Key Data Flows
 
-1. **Etherscan → Parquet**: `extract_etherscan.py` extracts blockchain data to `.data/raw/*.parquet`
-2. **Parquet → PostgreSQL/Snowflake**: `load.py` loads into `raw` schema tables
-3. **PostgreSQL → dbt**: dbt models transform `raw.logs` → `staging.stg_logs_decoded`
-4. Failed extractions are logged to `logging/extract_error/` and automatically retried with smaller chunk sizes (10x reduction)
+1. **HyperSync GraphQL → Parquet**: Extract blockchain data using external indexer to `.data/raw/*.parquet`
+2. **Parquet → PostgreSQL/Snowflake**: `load_file.py` loads into `raw` schema tables
+3. **Raw → dbt**: dbt models transform raw data through staging → marts
 
-## Stablecoin Reference Data Management
+## SCD Type 2: Stablecoin Metadata Tracking
 
-The project uses **SCD Type 2** (Slowly Changing Dimension) to track stablecoin metadata changes over time using dbt snapshots.
+The project uses **Slowly Changing Dimension Type 2** via dbt snapshots to maintain historical stablecoin metadata.
 
 ### Architecture
 ```
-CSV File → PostgreSQL (raw.raw_stablecoin) → dbt Snapshot (snapshots.snap_stablecoin) → Dimension (mart.dim_stablecoin)
+CSV → raw.raw_stablecoin → dbt snapshot → mart.dim_stablecoin (with history)
 ```
 
-### Initial Setup (First Time)
+### Initial Setup
 ```bash
-# 1. Load initial stablecoin data (all stablecoins)
-uv run python scripts/el/load.py \
+# 1. Load stablecoin metadata
+uv run python scripts/load_file.py \
   -f .data/raw/stablecoins.csv \
-  -c postgres \
-  -s raw \
-  -t raw_stablecoin \
-  -w replace
+  -c postgres -s raw -t raw_stablecoin -w replace
 
-# 2. Create initial snapshot (establishes baseline)
-./scripts/dbt.sh snapshot
+# 2. Create baseline snapshot (in dbt_project directory)
+cd dbt_project && dbt snapshot
 
-# 3. Build dimension table
-./scripts/dbt.sh run --select dim_stablecoin
+# 3. Build dimension
+dbt run --select dim_stablecoin
 ```
 
-### Updating Stablecoin Metadata (Incremental Updates)
+### Updating Metadata
 
-**When to update**: When stablecoin attributes change (name, symbol, backing_type, etc.) or when adding new stablecoins.
-
-**Option A: Merge/Upsert (Recommended - Only Updated Rows)**
+**Option A: Merge (Only Changed Rows)**
 ```bash
-# 1. Create CSV with ONLY changed/new stablecoins
-# Example: .data/raw/stablecoins_updates.csv
-# contract_address,chain,symbol,name,currency,backing_type,decimals
-# 0xa0b8...,ethereum,USDC,USD Coin Updated,usd,fiat-backed,6
-# 0x1234...,polygon,NEWCOIN,New Stablecoin,usd,crypto-backed,18
+# Load only changed/new records
+uv run python scripts/load_file.py \
+  -f .data/raw/updates.csv \
+  -c postgres -s raw -t raw_stablecoin \
+  -w merge -k contract_address,chain
 
-# 2. Merge updates into raw table
-uv run python scripts/el/load.py \
-  -f .data/raw/stablecoins_updates.csv \
-  -c postgres \
-  -s raw \
-  -t raw_stablecoin \
-  -w merge \
-  -k contract_address,chain
-
-# 3. Run snapshot to detect and record changes (SCD2)
-./scripts/dbt.sh snapshot
-
-# 4. Refresh dimension table
-./scripts/dbt.sh run --select dim_stablecoin
+cd dbt_project
+dbt snapshot                      # Detect changes
+dbt run --select dim_stablecoin   # Refresh dimension
 ```
 
-**Option B: Full Replacement (All Stablecoins)**
+**Option B: Replace (All Rows)**
 ```bash
-# 1. Provide CSV with ALL stablecoins (not just updates)
-uv run python scripts/el/load.py \
+# Load complete dataset
+uv run python scripts/load_file.py \
   -f .data/raw/stablecoins_full.csv \
-  -c postgres \
-  -s raw \
-  -t raw_stablecoin \
-  -w replace
+  -c postgres -s raw -t raw_stablecoin -w replace
 
-# 2-4. Same as Option A
-./scripts/dbt.sh snapshot
-./scripts/dbt.sh run --select dim_stablecoin
+cd dbt_project
+dbt snapshot
+dbt run --select dim_stablecoin
 ```
 
-### CSV Format
-```csv
-contract_address,chain,symbol,name,currency,backing_type,decimals
-0x02950460e2b9529d0e00284a5fa2d7bdf3fa4d72,ethereum,CURVE,Curve Finance USD,usd,crypto-backed,18
-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,ethereum,USDC,USD Coin,usd,fiat-backed,6
-```
-
-### How SCD2 Works
-- **First snapshot run**: All records get `valid_from = now()`, `valid_to = NULL`, `is_current = true`
-- **When changes detected**:
-  - Old version: `valid_to` is set to current timestamp, `is_current = false`
-  - New version: New row with `valid_from = now()`, `valid_to = NULL`, `is_current = true`
-- **Result**: Full history of all changes preserved in `mart.dim_stablecoin`
-
-### Querying SCD2 Dimension
+### Querying Historical Data
 ```sql
--- Get current stablecoin metadata
+-- Current records only
 SELECT * FROM mart.dim_stablecoin WHERE is_current = true;
 
--- Get stablecoin metadata at a specific point in time
+-- Point-in-time snapshot
 SELECT * FROM mart.dim_stablecoin
 WHERE '2024-01-15'::timestamp BETWEEN valid_from AND COALESCE(valid_to, '9999-12-31');
 
--- See all historical changes for a specific stablecoin
+-- Full history for one stablecoin
 SELECT * FROM mart.dim_stablecoin
-WHERE contract_address = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
+WHERE contract_address = '0xa0b8...'
 ORDER BY valid_from DESC;
 ```
 
@@ -283,38 +235,32 @@ ORDER BY valid_from DESC;
 
 ```
 dbt_project/
-├── dbt_project.yml          # Configuration (project: stablecoins)
-├── profiles.yml             # Database connections (dev=postgres, test/prod=snowflake)
+├── dbt_project.yml          # Project config (name: stables_analytics)
+├── profiles.yml             # Connections (dev=postgres, test/prod=snowflake)
 ├── models/
-│   ├── 01_staging/         # Raw data cleanup (materialized as views)
+│   ├── 01_staging/         # Views in 'staging' schema
 │   │   ├── sources.yml     # Source definitions (raw schema)
-│   │   ├── models.yml      # Model documentation
-│   │   └── stg_logs_decoded.sql
-│   ├── intermediate/       # Business logic (ephemeral)
-│   └── marts/              # Final analytics (tables)
+│   │   └── models.yml      # Model documentation
+│   ├── 02_intermediate/    # Ephemeral models (not materialized)
+│   └── 03_mart/            # Tables in 'mart' schema
+├── snapshots/              # SCD Type 2 snapshots
+├── macros/                 # Custom SQL macros
 ├── tests/                  # Data quality tests
-├── macros/                 # ethereum_macros.sql (uint256_to_address, uint256_to_numeric)
-└── packages.yml            # dbt dependencies
+└── packages.yml            # dbt package dependencies
 ```
 
-### Model Naming Conventions
-- **Staging models**: `stg_<source>_<entity>.sql` (e.g., `stg_logs_decoded.sql`)
-- **Intermediate models**: `int_<entity>_<verb>.sql` (e.g., `int_logs_filtered.sql`)
-- **Fact tables**: `fct_<entity>.sql` (e.g., `fct_transfers.sql`)
-- **Dimension tables**: `dim_<entity>.sql` (e.g., `dim_contracts.sql`)
+### Naming Conventions
+- Staging: `stg_<entity>` (e.g., `stg_transfer`)
+- Intermediate: `int_<entity>_<verb>` (e.g., `int_transfer_filtered`)
+- Facts: `fct_<entity>` (e.g., `fct_daily_volume`)
+- Dimensions: `dim_<entity>` (e.g., `dim_stablecoin`)
 
-## Database Schema
+## Project Structure
 
-- **raw.logs**: Raw log data with columns: address, topics (JSONB), data, block_number, transaction_hash, time_stamp, etc.
-- **raw.transactions**: Transaction data (structure similar to logs)
-- **staging.stg_logs_decoded**: Decoded logs with parsed topics (topic0-topic3), indexed on (contract_address, transaction_hash, index)
-- dbt creates additional staging/intermediate/mart tables based on models in `dbt_project/models/`
-
-## Project Structure Notes
-
-- Runnable scripts are ONLY in `scripts/` directory (organized as `scripts/el/` for extract/load)
-- Reusable code is packaged in `src/onchaindata/` as an installable package
-- dbt project located at `dbt_project/` with standard structure (staging → intermediate → marts)
-- Data files: `.data/raw/` for extracted data, `sampledata/` for examples
-- Always run Python scripts with `uv run python` (not direct python)
-- Project uses `uv` for dependency management (see `pyproject.toml`)
+- **scripts/**: Runnable Python scripts
+  - `load_file.py`: Data loader
+  - `utils/database_client.py`: Database client abstractions
+- **dbt_project/**: dbt transformation layer
+- **.data/raw/**: Data files (Parquet, CSV)
+- **docs/**: MkDocs documentation
+- Always run Python with: `uv run python script.py`

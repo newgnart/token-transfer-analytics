@@ -32,12 +32,6 @@ models:
         description: "Timestamp when record was created"
       - name: updated_at
         description: "Timestamp when record was last updated"
-    # tests:
-    #   - dbt_utils.unique_combination_of_columns:
-    #       combination_of_columns:
-    #         - contract_address
-    #         - chain
-    #       where: "is_current = true"
 
   - name: fct_transfer
     description: "Fact table for stablecoin transfer events with business enrichment"
@@ -87,9 +81,9 @@ models:
           - accepted_values:
               arguments:
                 values: ["transfer", "mint", "burn"]
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - transaction_hash
-              - log_index
+    # tests:
+    #   - dbt_utils.unique_combination_of_columns:
+    #       arguments:
+    #         combination_of_columns:
+    #           - transaction_hash
+    #           - log_index

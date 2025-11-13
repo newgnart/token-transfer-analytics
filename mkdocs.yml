@@ -58,9 +58,3 @@ nav:
       - Data Sources: 01_data_pipeline/source.md
       - Batch Layer: 01_data_pipeline/batch_layer.md
       - Speed Layer: 01_data_pipeline/speed_layer.md
-
-  # - Analytics: 03_analytics.md
-  # - API Reference:
-  #     - Data Sources: 04_api_reference/041_data_sources.md
-  #     - Data Loading: 04_api_reference/042_data_loading.md
-  #     - Configuration: 04_api_reference/043_configuration.md

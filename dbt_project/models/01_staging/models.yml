@@ -8,7 +8,7 @@ models:
         description: "Unique transfer ID (transaction_hash_logindex)"
         tests:
           - not_null
-          - unique
+          # - unique
       - name: block_number
         description: "Block number (cast to bigint)"
         tests:

@@ -1,5 +1,5 @@
 [sqlfluff]
-# Database dialect - Snowflake
+# Database dialect (Snowflake, BigQuery, PostgreSQL, etc.)
 dialect = snowflake
 
 # Templater for dbt projects
@@ -24,16 +24,16 @@ line_position = trailing
 
 # Capitalization rules
 [sqlfluff:rules:capitalisation.keywords]
-capitalisation_policy = upper
+capitalisation_policy = lower
 
 [sqlfluff:rules:capitalisation.identifiers]
 extended_capitalisation_policy = lower
 
 [sqlfluff:rules:capitalisation.functions]
-capitalisation_policy = upper
+capitalisation_policy = lower
 
 [sqlfluff:rules:capitalisation.literals]
-capitalisation_policy = consistent
+capitalisation_policy = lower
 
 # Aliasing rules
 [sqlfluff:rules:aliasing.table]
@@ -51,13 +51,15 @@ group_by_and_order_by_style = implicit
 
 # dbt templater configuration
 [sqlfluff:templater:dbt]
-project_dir = .
-profiles_dir = .
-profile = stables_analytics
-target = test
-# Skip dbt compilation and use Jinja templater instead
-skip_compilation = True
+# project_dir = ./dbt_sf
+# profiles_dir = ./dbt_sf
+# profile = dbt_sf
+target = ci
+dbt_skip_compilation_error = True
+dbt_skip_connection_error = True
 
 # Enable dbt builtins for Jinja templater
 [sqlfluff:templater:jinja]
 apply_dbt_builtins = True
+
+library_path = macros/

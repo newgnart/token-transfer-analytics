@@ -8,24 +8,24 @@
 }}
 
 
-WITH stg_transfer AS (
-    SELECT * FROM {{ ref('stg_transfer') }}
+with stg_transfer as (
+    select * from {{ ref('stg_transfer') }}
     {% if is_incremental() %}
     -- Only process new blocks since last run
-        WHERE block_number >= (SELECT COALESCE(MAX(block_number), 0) AS max_block FROM {{ this }})
+        where block_number >= (select COALESCE(MAX(block_number), 0) as max_block from {{ this }})
     {% endif %}
 ),
 
-dim_stablecoin AS (
-    SELECT * FROM {{ ref('dim_stablecoin') }}
-    WHERE is_current = true  -- Only use current stablecoin metadata
+dim_stablecoin as (
+    select * from {{ ref('dim_stablecoin') }}
+    where is_current = true  -- Only use current stablecoin metadata
 ),
 
-parsed AS (
-    SELECT
+parsed as (
+    select
         -- Parse natural key from id (format: "0xtxhash_logindex")
-        SPLIT_PART(id, '_', 2)::INTEGER AS log_index,
-        TO_CHAR(block_timestamp, 'YYYYMMDD')::INTEGER AS date_key,
+        SPLIT_PART(id, '_', 2)::INTEGER as log_index,
+        TO_CHAR(block_timestamp, 'YYYYMMDD')::INTEGER as date_key,
 
         -- Time dimension
         block_number,
@@ -33,19 +33,19 @@ parsed AS (
         contract_address,
 
         -- Contract/token dimension
-        'ethereum' AS chain,
+        'ethereum' as chain,
         from_address, -- TODO: get chain from raw data when available
 
         -- Address dimensions
 
         to_address,
-        SPLIT_PART(id, '_', 1) AS transaction_hash
+        SPLIT_PART(id, '_', 1) as transaction_hash
 
-    FROM stg_transfer
+    from stg_transfer
 ),
 
-enriched AS (
-    SELECT
+enriched as (
+    select
         -- Keys
         p.transaction_hash,
         p.log_index,
@@ -66,32 +66,32 @@ enriched AS (
         -- Join stablecoin metadata
         d.symbol,
         d.name,
-        COALESCE(d.decimals, 18) AS decimals,
+        COALESCE(d.decimals, 18) as decimals,
 
         -- Determine transaction type
-        CASE
-            WHEN p.from_address = '0x0000000000000000000000000000000000000000' THEN 'mint'
-            WHEN p.to_address = '0x0000000000000000000000000000000000000000' THEN 'burn'
-            ELSE 'transfer'
-        END AS transaction_type,
+        case
+            when p.from_address = '0x0000000000000000000000000000000000000000' then 'mint'
+            when p.to_address = '0x0000000000000000000000000000000000000000' then 'burn'
+            else 'transfer'
+        end as transaction_type,
 
         -- Convert to decimal amount using actual decimals from dim_stablecoin
         -- For stablecoins, amount ≈ USD value. TODO: have dim_price table
 
-        {{ convert_token_amount('s.amount_raw', 'COALESCE(d.decimals, 18)', 2) }} AS amount
+        {{ convert_token_amount('s.amount_raw', 'COALESCE(d.decimals, 18)', 2) }} as amount
 
-    FROM parsed AS p
-    LEFT JOIN stg_transfer AS s
-        ON
+    from parsed as p
+    left join stg_transfer as s
+        on
             p.transaction_hash = SPLIT_PART(s.id, '_', 1)
-            AND p.log_index = SPLIT_PART(s.id, '_', 2)::INTEGER
-    LEFT JOIN dim_stablecoin AS d
-        ON
+            and p.log_index = SPLIT_PART(s.id, '_', 2)::INTEGER
+    left join dim_stablecoin as d
+        on
             LOWER(p.contract_address) = LOWER(d.contract_address)
-            AND p.chain = d.chain
+            and p.chain = d.chain
 )
 
-SELECT
+select
     transaction_hash,
     log_index,
     date_key,
@@ -108,5 +108,5 @@ SELECT
     amount,
 
     -- Audit column to track incremental runs
-    CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) AS dbt_loaded_at
-FROM enriched
+    CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) as dbt_loaded_at
+from enriched

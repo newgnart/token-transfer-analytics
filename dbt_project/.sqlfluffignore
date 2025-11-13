@@ -1,19 +1,12 @@
 # dbt specific directories
-dbt_project/target/
-dbt_project/dbt_packages/
-dbt_project/logs/
+target/
+dbt_packages/
+macros/
 
-# Non-dbt SQL files (if any)
-scripts/sql/ad_hoc.sql
-
-# Python environments
+# Non-dbt SQL files
+scripts/
 .venv/
-venv/
 
 # Generated files
 *.pyc
 __pycache__/
-
-# Data directories
-.data/
-sampledata/

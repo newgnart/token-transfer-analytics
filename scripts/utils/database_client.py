@@ -1,10 +1,108 @@
-import snowflake.connector
-import os
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Optional, Dict, Any
-import dlt
+from typing import Optional, Any, Dict, List
+import os
 
-from .base_client import BaseDatabaseClient
+import psycopg
+import dlt
+import snowflake.connector
+
+
+class BaseDatabaseClient(ABC):
+    """Abstract base class for database clients with common patterns."""
+
+    def __init__(self):
+        """Initialize with connection parameters."""
+        self.connection_params = self._build_connection_params()
+        self._engine = None
+
+    @abstractmethod
+    def _build_connection_params(self) -> Dict[str, Any]:
+        """Build connection parameters from environment or config."""
+        pass
+
+    @abstractmethod
+    @contextmanager
+    def get_connection(self):
+        """Context manager for database connections."""
+        pass
+
+    @abstractmethod
+    def get_dlt_destination(self):
+        """Get DLT destination for this database."""
+        pass
+
+    @staticmethod
+    def _get_env_var(key: str, default: str = None) -> str:
+        """Helper method to get environment variables."""
+        return os.getenv(key, default)
+
+
+class PostgresClient(BaseDatabaseClient):
+    """Object-oriented PostgreSQL client for database operations."""
+
+    def __init__(
+        self,
+        host: str = None,
+        port: int = None,
+        database: str = None,
+        user: str = None,
+        password: str = None,
+    ):
+        """
+        Initialize PostgresDestination with database configuration.
+
+        Args:
+            host: Database host
+            port: Database port
+            database: Database name
+            user: Database user
+            password: Database password
+        """
+        self.host = host
+        self.port = port
+        self.database = database
+        self.user = user
+        self.password = password
+        super().__init__()
+
+    @classmethod
+    def from_env(cls) -> "PostgresClient":
+        """Create from environment variables"""
+        return cls(
+            host=cls._get_env_var("POSTGRES_HOST"),
+            port=int(cls._get_env_var("POSTGRES_PORT", "5432")),
+            database=cls._get_env_var("POSTGRES_DB"),
+            user=cls._get_env_var("POSTGRES_USER"),
+            password=cls._get_env_var("POSTGRES_PASSWORD"),
+        )
+
+    def _build_connection_params(self) -> Dict[str, Any]:
+        """Build connection parameters from instance variables."""
+        return {
+            "host": self.host,
+            "port": self.port,
+            "dbname": self.database,
+            "user": self.user,
+            "password": self.password,
+        }
+
+    @contextmanager
+    def get_connection(self):
+        """Context manager for PostgreSQL connections."""
+        conn = None
+        try:
+            conn = psycopg.connect(**self.connection_params)
+            yield conn
+        finally:
+            if conn:
+                conn.close()
+
+    def get_dlt_destination(self) -> Any:
+        """Return DLT destination for pipeline operations."""
+        params = self.connection_params
+        connection_url = f"postgresql://{params['user']}:{params['password']}@{params['host']}:{params['port']}/{params['dbname']}"
+        return dlt.destinations.postgres(connection_url)
 
 
 class SnowflakeClient(BaseDatabaseClient):
