@@ -51,11 +51,11 @@ jobs:
 
       - name: Run dbt debug
         run: |
-          cd dbt_project && uv run dbt debug --target test
+          cd dbt_project && uv run dbt debug
 
       - name: Run dbt deps
         run: |
-          cd dbt_project && uv run dbt deps --target test
+          cd dbt_project && uv run dbt deps
 
       - name: Run SQLFluff lint
         run: |
@@ -63,4 +63,4 @@ jobs:
 
       - name: Run dbt tests
         run: |
-          cd dbt_project && uv run dbt test --target test
+          cd dbt_project && uv run dbt test
