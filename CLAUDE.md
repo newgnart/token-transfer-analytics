@@ -158,7 +158,7 @@ Required variables (see [.env.example](.env.example)):
 Optional (for Snowflake):
 - `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`
 - `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`
-- `SNOWFLAKE_PRIVATE_KEY_FILE`: Path to private key file (.p8 or .pem) for local development
+- `SNOWFLAKE_PRIVATE_KEY_PATH`: Path to private key file (.p8 or .pem) for local development
 
 ## Key Data Flows
 
