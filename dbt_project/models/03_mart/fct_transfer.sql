@@ -93,19 +93,21 @@ enriched as (
 
 select
     transaction_hash,
-    log_index,
+    -- log_index,
     date_key,
-    block_number,
-    block_timestamp,
+    -- block_number,
     contract_address,
     chain,
     from_address,
     to_address,
-    symbol,
-    name,
-    decimals,
     transaction_type,
+    -- symbol,
+    -- name,
+    -- decimals,
     amount,
+
+    -- Calculations last (ST06: simple targets before calculations)
+    CONVERT_TIMEZONE('UTC', block_timestamp) as block_timestamp,
 
     -- Audit column to track incremental runs
     CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) as dbt_loaded_at

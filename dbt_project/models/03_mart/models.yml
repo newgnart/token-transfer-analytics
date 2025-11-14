@@ -40,24 +40,16 @@ models:
         description: "Ethereum transaction hash"
         tests:
           - not_null
-      - name: log_index
-        description: "Log index within the transaction"
-        tests:
-          - not_null
       - name: date_key
         description: "Date dimension key in YYYYMMDD format"
         tests:
           - not_null
-      - name: block_number
-        description: "Block number where transfer occurred"
-        tests:
-          - not_null
-      - name: block_timestamp
-        description: "Block timestamp in UTC"
-        tests:
-          - not_null
       - name: contract_address
         description: "Token contract address"
+        tests:
+          - not_null
+      - name: chain
+        description: "Blockchain identifier (currently 'ethereum')"
         tests:
           - not_null
       - name: from_address
@@ -68,12 +60,6 @@ models:
         description: "Recipient address (0x0 for burns)"
         tests:
           - not_null
-      - name: amount_raw
-        description: "Transfer amount in smallest unit (before decimal adjustment)"
-      - name: amount
-        description: "Transfer amount adjusted for decimals (assuming 6 decimals)"
-      - name: usd_value
-        description: "Approximate USD value (for stablecoins)"
       - name: transaction_type
         description: "Type of transaction: transfer, mint, or burn"
         tests:
@@ -81,9 +67,15 @@ models:
           - accepted_values:
               arguments:
                 values: ["transfer", "mint", "burn"]
-    # tests:
-    #   - dbt_utils.unique_combination_of_columns:
-    #       arguments:
-    #         combination_of_columns:
-    #           - transaction_hash
-    #           - log_index
+      - name: amount
+        description: "Transfer amount adjusted for token decimals"
+        tests:
+          - not_null
+      - name: block_timestamp
+        description: "Block timestamp in UTC"
+        tests:
+          - not_null
+      - name: dbt_loaded_at
+        description: "Timestamp when record was loaded by dbt"
+        tests:
+          - not_null

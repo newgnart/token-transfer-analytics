@@ -1,0 +1,11 @@
+query stablesTransfers {
+  stablesTransfers(order_by: { blockNumber: desc }) {
+    id
+    blockNumber
+    timestamp
+    contractAddress
+    from
+    to
+    value
+  }
+}
