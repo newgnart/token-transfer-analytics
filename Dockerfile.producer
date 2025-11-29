@@ -7,13 +7,13 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
-COPY producer.py ./
-COPY services/ ./services/
-COPY utils/ ./utils/
+COPY scripts/ ./scripts/
+COPY scripts/kafka/producer.py ./producer.py
 
 # Use internal network for Docker Compose
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-ENV GRAPHQL_ENDPOINT=http://localhost:8080/v1/graphql
+# Note: GRAPHQL_ENDPOINT should be set in .env or docker-compose.yml
+# ENV GRAPHQL_ENDPOINT=http://localhost:8080/v1/graphql
 ENV POLL_INTERVAL=10
 
 CMD ["uv", "run", "producer.py"]

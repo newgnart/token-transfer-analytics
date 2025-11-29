@@ -1,7 +1,29 @@
+# Kafka Infrastructure Docker Compose
+# Kafka streaming layer with monitoring UI
+#
+# Usage:
+#   Start Kafka infrastructure:
+#     docker-compose -f docker-compose.kafka.yml up -d
+#
+#   Stop Kafka:
+#     docker-compose -f docker-compose.kafka.yml down
+#
+#   View Kafka UI (Kafdrop):
+#     http://localhost:9000
+#
+# Prerequisites:
+#   - Network: stables_analytics_network must exist
+#   - Run: docker network create stables_analytics_kafka_network (or start base docker-compose.yml first)
+
 services:
-  # Core Infrastructure Services (start these for development)
+  # ============================================================================
+  # KAFKA STREAMING INFRASTRUCTURE
+  # ============================================================================
+
+  # Kafka Broker (KRaft mode - no Zookeeper needed)
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    container_name: stables-kafka
     ports:
       - "9092:9092"
       - "29092:29092" # Host access port
@@ -27,7 +49,6 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
       CLUSTER_ID: "xUl_ExjdQaSZB9OGK7wHYg"
-
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -41,13 +62,14 @@ services:
       start_period: 60s
       timeout: 10s
     networks:
-      - kafka_network
+      - stables_analytics_network
     restart: unless-stopped
 
-  # Kafka UI for monitoring and debugging
+  # Kafka UI - Monitoring and Debugging
   kafdrop:
     image: obsidiandynamics/kafdrop:4.0.0
-    platform: linux/amd64  # for Apple Silicon compatibility
+    container_name: stables-kafdrop
+    platform: linux/amd64 # For Apple Silicon compatibility
     ports:
       - "9000:9000"
     environment:
@@ -58,57 +80,14 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - kafka_network
+      - stables_analytics_network
     restart: unless-stopped
-
-  # Application Services (start these separately with --profile app)
-  producer:
-    build:
-      context: .
-      dockerfile: Dockerfile.producer
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - GRAPHQL_ENDPOINT=${GRAPHQL_ENDPOINT:-http://host.docker.internal:8080/v1/graphql}
-      - POLL_INTERVAL=${POLL_INTERVAL:-10}
-      - KAFKA_TOPIC=${KAFKA_TOPIC:-stables-transfers}
-    depends_on:
-      kafka:
-        condition: service_healthy
-    networks:
-      - kafka_network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-    profiles: ["app"]
-
-  consumer:
-    build:
-      context: .
-      dockerfile: Dockerfile.consumer
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - KAFKA_TOPIC=${KAFKA_TOPIC:-stables-transfers}
-      - KAFKA_BATCH_SIZE=${KAFKA_BATCH_SIZE:-100}
-      - KAFKA_MAX_RECORDS=${KAFKA_MAX_RECORDS:-}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_HOST=host.docker.internal
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - POSTGRES_DB=${POSTGRES_DB:-capstone}
-    depends_on:
-      kafka:
-        condition: service_healthy
-    networks:
-      - kafka_network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-    profiles: ["app"]
 
 volumes:
   kafka_data:
     driver: local
 
 networks:
-  kafka_network:
-    driver: bridge
+  stables_analytics_network:
+    external: true
+    name: stables_analytics_network

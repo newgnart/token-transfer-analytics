@@ -38,3 +38,12 @@ target/
 dbt_packages/
 
 bin/
+
+logs/
+
+# Airflow
+airflow/logs/
+airflow/config/airflow.cfg
+airflow/__pycache__/
+airflow/**/__pycache__/
+.airflowignore

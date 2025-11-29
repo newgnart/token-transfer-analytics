@@ -1,0 +1,47 @@
+# Base Docker Compose - Core PostgreSQL Database
+# This is the foundation database for the analytics pipeline
+#
+# Usage:
+#   Start PostgreSQL:
+#     docker-compose up -d
+#
+#   Stop PostgreSQL:
+#     docker-compose down
+#
+#   Remove data volumes:
+#     docker-compose down -v
+
+services:
+  # PostgreSQL - Main Data Warehouse
+  postgres:
+    image: postgres:17.4
+    container_name: stables-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - network_01
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  network_01:
+    external: true
+    driver: bridge
