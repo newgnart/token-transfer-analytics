@@ -43,8 +43,8 @@ contract_address,
 
 -- Transfer parameters (decode from topics and data)
 -- Remove 0x prefix and leading zeros, then add 0x prefix for addresses
-'0x' || SUBSTRING(topic1, 27) as from_address, -- topic1 is 66 chars (0x + 64 hex), address is last 40 hex chars
-'0x' || SUBSTRING(topic2, 27) as to_address, -- topic2 is 66 chars (0x + 64 hex), address is last 40 hex chars
+'0x' || {{ substring_from('topic1', 27) }} as from_address, -- topic1 is 66 chars (0x + 64 hex), address is last 40 hex chars
+'0x' || {{ substring_from('topic2', 27) }} as to_address, -- topic2 is 66 chars (0x + 64 hex), address is last 40 hex chars
 
 -- Convert hex value to numeric
 -- data is 0x followed by 64 hex chars (256 bits)

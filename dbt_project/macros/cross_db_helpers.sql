@@ -76,14 +76,22 @@
 
 {% macro hex_to_bigint(hex_string_expression) %}
   {#-
-    Convert hex string (with '0x' prefix removed and leading zeros trimmed) to bigint
-    - PostgreSQL: Uses ::bit(64)::bigint casting
+    Convert hex string (with '0x' prefix removed and leading zeros trimmed) to numeric
+    Handles unsigned uint256 values correctly by treating them as unsigned integers
+
+    - PostgreSQL: Uses ::bit(64)::bigint with unsigned conversion for negative values
     - Snowflake: Uses TRY_TO_NUMBER with XXXXXXXXXXXX format (16 hex digits = 64 bits)
 
     Input should be result of trim_leading_zeros(SUBSTRING(hex_column, 3))
+
+    Note: Returns NUMERIC type (not BIGINT) to handle full uint64 range without overflow
   -#}
   {% if target.type == 'postgres' %}
-    ('x' || {{ hex_string_expression }})::bit(64)::bigint
+    (CASE
+        WHEN ('x' || LPAD({{ hex_string_expression }}, 16, '0'))::bit(64)::bigint < 0
+        THEN ('x' || LPAD({{ hex_string_expression }}, 16, '0'))::bit(64)::bigint::numeric + 18446744073709551616::numeric
+        ELSE ('x' || LPAD({{ hex_string_expression }}, 16, '0'))::bit(64)::bigint::numeric
+    END)
   {% elif target.type == 'snowflake' %}
     try_to_number({{ hex_string_expression }}, 'XXXXXXXXXXXXXXXX')
   {% else %}
@@ -122,6 +130,24 @@
     TO_CHAR({{ date_expr }}, 'YYYYMMDD')::INTEGER
   {% elif target.type == 'snowflake' %}
     TO_NUMBER(TO_VARCHAR({{ date_expr }}, 'YYYYMMDD'))
+  {% else %}
+    {{ exceptions.raise_compiler_error("Unsupported database type: " ~ target.type) }}
+  {% endif %}
+{% endmacro %}
+
+
+{% macro substring_from(string_expression, start_position) %}
+  {#-
+    Extract substring from start_position to end of string
+    - PostgreSQL: SUBSTRING(string FROM start_position)
+    - Snowflake: SUBSTRING(string, start_position) requires length, so use large number
+
+    start_position is 1-based index
+  -#}
+  {% if target.type == 'postgres' %}
+    SUBSTRING({{ string_expression }}, {{ start_position }})
+  {% elif target.type == 'snowflake' %}
+    SUBSTRING({{ string_expression }}, {{ start_position }}, 1000)
   {% else %}
     {{ exceptions.raise_compiler_error("Unsupported database type: " ~ target.type) }}
   {% endif %}

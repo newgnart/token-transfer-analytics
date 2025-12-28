@@ -3,6 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 import os, logging
 import argparse
+import polars as pl
 
 load_dotenv()
 
@@ -70,6 +71,13 @@ def main():
         default=None,
         help="Ending block number (default: None for latest)",
     )
+    parser.add_argument(
+        "--contract-name",
+        "-n",
+        type=str,
+        default=None,
+        help="Contract name to use in the filename",
+    )
 
     args = parser.parse_args()
 
@@ -78,6 +86,37 @@ def main():
             contract=args.contract, from_block=args.from_block, to_block=args.to_block
         )
     )
+
+    # Rename parquet file with block range suffix
+    source_path = f".data/logs.parquet"
+    # if args.contract_name:
+    #     source_path = f".data/{args.contract_name}.parquet"
+
+    try:
+        # Read the actual to_block from the parquet file
+        to_block_actual = (
+            pl.scan_parquet(source_path)
+            .select(pl.col("block_number").max())
+            .collect()
+            .item()
+        )
+
+        # Construct new filename with block range
+        dest_path = (
+            f".data/{args.contract_name}_{args.from_block}_{to_block_actual}.parquet"
+        )
+        if args.contract_name:
+            dest_path = f".data/{args.contract_name}_logs_{args.from_block}_{to_block_actual}.parquet"
+
+        os.rename(source_path, dest_path)
+        logger.info(f"Renamed file to: {dest_path}")
+
+    except FileNotFoundError:
+        logger.error(f"Parquet file not found: {source_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to rename parquet file: {e}")
+        raise
 
 
 if __name__ == "__main__":
