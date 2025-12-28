@@ -2,59 +2,65 @@ version: 2
 
 sources:
   - name: raw_data
-    description: "Raw data from indexer, etherscan, etc."
+    description: "Raw blockchain event logs and signatures"
     schema: raw
     tables:
-      - name: raw_transfer
-        description: "Raw transfer events data, from HyperIndex"
+      - name: open_logs
+        description: "Raw blockchain event logs from various contracts"
         columns:
-          - name: id
-            description: "Unique transfer ID (transaction_hash_logindex)"
+          - name: removed
+            description: "Whether the log was removed due to chain reorganization"
+          - name: log_index
+            description: "Position of the log within the block"
             tests:
               - not_null
+          - name: transaction_index
+            description: "Position of the transaction within the block"
+          - name: transaction_hash
+            description: "Transaction hash (bytea)"
+            tests:
+              - not_null
+          - name: block_hash
+            description: "Block hash (bytea)"
           - name: block_number
-            description: "Block number as string"
+            description: "Block number"
             tests:
               - not_null
-          - name: timestamp
-            description: "Unix timestamp as string"
-          - name: contract_address
-            description: "Token contract address"
+          - name: address
+            description: "Contract address that emitted the event (bytea)"
             tests:
               - not_null
-          - name: from
-            description: "Sender address"
-          - name: to
-            description: "Recipient address"
-          - name: value
-            description: "Transfer amount as string"
+          - name: data
+            description: "Non-indexed event parameters (bytea)"
+          - name: topic0
+            description: "Event signature hash (bytea)"
+          - name: topic1
+            description: "First indexed parameter (bytea)"
+          - name: topic2
+            description: "Second indexed parameter (bytea)"
           - name: _dlt_load_id
             description: "DLT load identifier"
           - name: _dlt_id
             description: "DLT unique row identifier"
+            tests:
+              - unique
+              - not_null
 
-      - name: raw_stablecoin
-        description: "Raw stablecoin metadata and configuration"
+      - name: event_signature
+        description: "Event signature lookup table mapping topic0 hashes to event names"
         columns:
-          - name: contract_address
-            description: "Token contract address"
+          - name: topic0
+            description: "Event signature hash (keccak256)"
             tests:
               - not_null
-          - name: chain
-            description: "Blockchain identifier (ethereum, polygon, etc.)"
-            tests:
-              - not_null
-          - name: symbol
-            description: "Token symbol (e.g., USDT, USDC)"
-          - name: name
-            description: "Full token name"
-          - name: currency
-            description: "ISO currency code (usd, eur, etc.)"
-          - name: backing_type
-            description: "Collateral type: fiat-backed, crypto-backed, algorithmic"
-          - name: decimals
-            description: "Token decimal places"
+          - name: event_name
+            description: "Human-readable event name (e.g., Transfer, Approval)"
+          - name: signature
+            description: "Full event signature (e.g., Transfer(address,address,uint256))"
           - name: _dlt_load_id
             description: "DLT load identifier"
           - name: _dlt_id
             description: "DLT unique row identifier"
+            tests:
+              - unique
+              - not_null

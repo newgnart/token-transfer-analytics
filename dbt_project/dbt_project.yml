@@ -24,9 +24,9 @@ models:
       +materialized: view
       +schema: staging
     # Uncomment when you add models to these folders:
-    # 02_intermediate:
-    #   +materialized: ephemeral
-    #   +schema: intermediate
+    02_intermediate:
+      +materialized: ephemeral
+      +schema: intermediate
     03_mart:
       +materialized: table
       +schema: mart

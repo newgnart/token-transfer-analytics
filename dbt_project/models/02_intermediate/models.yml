@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: int_event
+    description: "Intermediate model for event signatures - simple passthrough from staging"
+    config:
+      materialized: ephemeral
+    columns:
+      - name: topic0_hash
+        description: "Event signature hash (keccak256, hex string with 0x prefix)"
+        tests:
+          - not_null
+      - name: event_name
+        description: "Human-readable event name (e.g., Transfer, Approval)"
+      - name: event_signature
+        description: "Full event signature (e.g., Transfer(address,address,uint256))"
+
+  - name: int_all_transfer
+    description: "Intermediate model for all Transfer events decoded from blockchain logs. Extracts and decodes Transfer(address,address,uint256) events with amount conversion."
+    config:
+      materialized: ephemeral
+    columns:
+      - name: transaction_hash
+        description: "Transaction hash (hex string with 0x prefix)"
+        tests:
+          - not_null
+      - name: log_index
+        description: "Position of the log within the block"
+        tests:
+          - not_null
+      - name: block_number
+        description: "Block number where the transfer occurred"
+        tests:
+          - not_null
+      - name: block_hash
+        description: "Block hash (hex string with 0x prefix)"
+      - name: contract_address
+        description: "Token contract address that emitted the Transfer event (hex string with 0x prefix)"
+        tests:
+          - not_null
+      - name: from_address
+        description: "Sender address (decoded from topic1, hex string with 0x prefix)"
+        tests:
+          - not_null
+      - name: to_address
+        description: "Recipient address (decoded from topic2, hex string with 0x prefix)"
+        tests:
+          - not_null
+      - name: amount_raw
+        description: "Raw transfer amount as integer (before decimal adjustment)"
+        tests:
+          - not_null
+      - name: amount
+        description: "Transfer amount converted to decimal (assuming 18 decimals standard ERC20)"
+      - name: event_name
+        description: "Event name (always 'Transfer' for this model)"
+      - name: transaction_index
+        description: "Position of the transaction within the block"

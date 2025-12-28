@@ -1,67 +1,63 @@
 version: 2
 
 models:
-  - name: stg_transfer
-    description: "Staging model for transfer events with type casting"
+  - name: stg_open_logs
+    description: "Staging model for blockchain event logs with bytea to hex conversion"
     columns:
-      - name: id
-        description: "Unique transfer ID (transaction_hash_logindex)"
+      - name: is_removed
+        description: "Whether the log was removed due to chain reorganization"
+      - name: log_index
+        description: "Position of the log within the block"
         tests:
           - not_null
-          # - unique
+      - name: transaction_index
+        description: "Position of the transaction within the block"
       - name: block_number
-        description: "Block number (cast to bigint)"
+        description: "Block number"
         tests:
           - not_null
-      - name: block_timestamp
-        description: "Block timestamp in UTC"
+      - name: transaction_hash
+        description: "Transaction hash (hex string with 0x prefix)"
         tests:
           - not_null
+      - name: block_hash
+        description: "Block hash (hex string with 0x prefix)"
       - name: contract_address
-        description: "Token contract address"
+        description: "Contract address that emitted the event (hex string with 0x prefix)"
         tests:
           - not_null
-      - name: from_address
-        description: "Sender address"
-      - name: to_address
-        description: "Recipient address"
-      - name: amount_raw
-        description: "Transfer amount in smallest unit (before decimal adjustment)"
+      - name: topic0
+        description: "Event signature hash (hex string with 0x prefix)"
+      - name: topic1
+        description: "First indexed parameter (hex string with 0x prefix)"
+      - name: topic2
+        description: "Second indexed parameter (hex string with 0x prefix)"
+      - name: event_data
+        description: "Non-indexed event parameters (hex string with 0x prefix)"
       - name: _dlt_load_id
         description: "DLT load identifier"
       - name: _dlt_id
         description: "DLT unique row identifier"
+        tests:
+          - unique
+          - not_null
 
-  - name: stg_stablecoin
-    description: "Staging model for stablecoin metadata with type casting"
+  - name: stg_event_signature
+    description: "Staging model for event signature lookup table"
     columns:
-      - name: contract_address
-        description: "Token contract address"
+      - name: topic0_hash
+        description: "Event signature hash (keccak256, hex string with 0x prefix)"
         tests:
           - not_null
-      - name: chain
-        description: "Blockchain identifier"
-        tests:
-          - not_null
-      - name: symbol
-        description: "Token symbol (e.g., USDT, USDC)"
-      - name: name
-        description: "Full token name"
-      - name: currency
-        description: "ISO currency code (usd, eur, etc.)"
-      - name: backing_type
-        description: "Collateral type: fiat-backed, crypto-backed, algorithmic"
-      - name: decimals
-        description: "Token decimal places"
-        tests:
-          - not_null
+          - unique
+      - name: event_name
+        description: "Human-readable event name (e.g., Transfer, Approval)"
+      - name: event_signature
+        description: "Full event signature (e.g., Transfer(address,address,uint256))"
       - name: _dlt_load_id
         description: "DLT load identifier"
       - name: _dlt_id
         description: "DLT unique row identifier"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - contract_address
-              - chain
+        tests:
+          - unique
+          - not_null

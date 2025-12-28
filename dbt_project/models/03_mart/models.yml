@@ -1,80 +1,117 @@
 version: 2
 
 models:
-  - name: dim_stablecoin
-    description: "Dimension table for stablecoin metadata"
+
+  - name: dim_event
+    description: "Dimension table for event signatures with categorization"
     columns:
-      - name: contract_address
-        description: "Token contract address"
+      - name: topic0_hash
+        description: "Event signature hash (keccak256, hex string with 0x prefix)"
         tests:
           - not_null
-      - name: chain
-        description: "Blockchain identifier"
-        tests:
-          - not_null
-      - name: symbol
-        description: "Token symbol (e.g., USDT, USDC)"
-      - name: name
-        description: "Full token name"
-      - name: currency
-        description: "ISO currency code (usd, eur, etc.)"
-      - name: backing_type
-        description: "Collateral type: fiat-backed, crypto-backed, algorithmic"
+          - unique
+      - name: event_name
+        description: "Human-readable event name (e.g., Transfer, Approval)"
+      - name: event_signature
+        description: "Full event signature (e.g., Transfer(address,address,uint256))"
+      - name: event_base_name
+        description: "Base event name parsed from signature"
+      - name: event_parameters
+        description: "Parameter types parsed from signature"
+      - name: event_category
+        description: "Event category: token_transfer, token_approval, access_control, contract_upgrade, auction, rebalancing, other"
         tests:
           - accepted_values:
               arguments:
-                values: ["fiat-backed", "crypto-backed", "algorithmic"]
-      - name: decimals
-        description: "Token decimal places"
-        tests:
-          - not_null
-      - name: created_at
-        description: "Timestamp when record was created"
-      - name: updated_at
-        description: "Timestamp when record was last updated"
+                values: ["token_transfer", "token_approval", "access_control", "contract_upgrade", "auction", "rebalancing", "other"]
 
-  - name: fct_transfer
-    description: "Fact table for stablecoin transfer events with business enrichment"
+  - name: fct_mint
+    description: "Fact table for stablecoin mint events (Transfer events where from_address = 0x0)"
     columns:
       - name: transaction_hash
-        description: "Ethereum transaction hash"
+        description: "Transaction hash (hex string with 0x prefix)"
+        tests:
+          - not_null
+      - name: log_index
+        description: "Position of the log within the block"
         tests:
           - not_null
       - name: date_key
         description: "Date dimension key in YYYYMMDD format"
         tests:
           - not_null
+      - name: block_number
+        description: "Block number where the mint occurred"
+        tests:
+          - not_null
+      - name: block_hash
+        description: "Block hash (hex string with 0x prefix)"
       - name: contract_address
         description: "Token contract address"
         tests:
           - not_null
-      - name: chain
-        description: "Blockchain identifier (currently 'ethereum')"
+      - name: minted_to_address
+        description: "Address receiving the minted tokens"
         tests:
           - not_null
-      - name: from_address
-        description: "Sender address (0x0 for mints)"
+      - name: amount_raw
+        description: "Raw minted amount as integer (before decimal adjustment)"
         tests:
           - not_null
-      - name: to_address
-        description: "Recipient address (0x0 for burns)"
+      - name: minted_amount
+        description: "Minted amount adjusted for decimals (assumes 18 decimals)"
         tests:
           - not_null
-      - name: transaction_type
-        description: "Type of transaction: transfer, mint, or burn"
+      - name: event_name
+        description: "Event name (always 'Transfer')"
+      - name: transaction_index
+        description: "Position of the transaction within the block"
+      - name: dbt_loaded_at
+        description: "Timestamp when record was loaded by dbt"
         tests:
           - not_null
-          - accepted_values:
-              arguments:
-                values: ["transfer", "mint", "burn"]
-      - name: amount
-        description: "Transfer amount adjusted for token decimals"
+
+  - name: fct_burn
+    description: "Fact table for stablecoin burn events (Transfer events where to_address = 0x0)"
+    columns:
+      - name: transaction_hash
+        description: "Transaction hash (hex string with 0x prefix)"
         tests:
           - not_null
-      - name: block_timestamp
-        description: "Block timestamp in UTC"
+      - name: log_index
+        description: "Position of the log within the block"
         tests:
           - not_null
+      - name: date_key
+        description: "Date dimension key in YYYYMMDD format"
+        tests:
+          - not_null
+      - name: block_number
+        description: "Block number where the burn occurred"
+        tests:
+          - not_null
+      - name: block_hash
+        description: "Block hash (hex string with 0x prefix)"
+      - name: contract_address
+        description: "Token contract address"
+        tests:
+          - not_null
+      - name: burned_from_address
+        description: "Address where tokens were burned from"
+        tests:
+          - not_null
+      - name: amount_raw
+        description: "Raw burned amount as integer (before decimal adjustment)"
+        tests:
+          - not_null
+      - name: burned_amount
+        description: "Burned amount adjusted for decimals (assumes 18 decimals)"
+        tests:
+          - not_null
+      - name: event_name
+        description: "Event name (always 'Transfer')"
+      - name: transaction_index
+        description: "Position of the transaction within the block"
       - name: dbt_loaded_at
         description: "Timestamp when record was loaded by dbt"
         tests:

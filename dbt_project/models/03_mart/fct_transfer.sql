@@ -7,108 +7,56 @@
     )
 }}
 
+-- Fact table for Transfer events
+-- Built on top of int_all_transfer intermediate model
 
-with stg_transfer as (
-    select * from {{ ref('stg_transfer') }}
+with int_all_transfer as (
+    select * from {{ ref('int_all_transfer') }}
     {% if is_incremental() %}
     -- Only process new blocks since last run
-        where block_number >= (select COALESCE(MAX(block_number), 0) as max_block from {{ this }})
+    where block_number > (select COALESCE(MAX(block_number), 0) from {{ this }})
     {% endif %}
 ),
 
-dim_stablecoin as (
-    select * from {{ ref('dim_stablecoin') }}
-    where is_current = true  -- Only use current stablecoin metadata
-),
-
-parsed as (
+final as (
     select
-        -- Parse natural key from id (format: "0xtxhash_logindex")
-        SPLIT_PART(id, '_', 2)::INTEGER as log_index,
-        TO_CHAR(block_timestamp, 'YYYYMMDD')::INTEGER as date_key,
+        -- Keys
+        transaction_hash,
+        log_index,
+
+        -- Generate date key for partitioning/filtering
+        -- TODO: Add block timestamp from blocks table when available
+        {{ date_to_integer_key() }} as date_key,
 
         -- Time dimension
         block_number,
-        block_timestamp,
+        block_hash,
+
+        -- Contract dimension
         contract_address,
 
-        -- Contract/token dimension
-        'ethereum' as chain,
-        from_address, -- TODO: get chain from raw data when available
-
         -- Address dimensions
-
+        from_address,
         to_address,
-        SPLIT_PART(id, '_', 1) as transaction_hash
 
-    from stg_transfer
-),
+        -- Amount columns
+        amount_raw,
+        amount,
 
-enriched as (
-    select
-        -- Keys
-        p.transaction_hash,
-        p.log_index,
+        -- Metadata
+        event_name,
+        transaction_index,
+        {%- if target.type == 'postgres' %}
+        _dlt_load_id,
+        {%- endif %}
 
-        -- Time dimension
-        p.date_key,
-        p.block_number,
-        p.block_timestamp,
+        -- Audit column to track incremental runs
+        {{ current_timestamp_func() }} as dbt_loaded_at
 
-        -- Contract/token dimension
-        p.contract_address,
-        p.chain,
-
-        -- Address dimensions
-        p.from_address,
-        p.to_address,
-
-        -- Join stablecoin metadata
-        d.symbol,
-        d.name,
-        COALESCE(d.decimals, 18) as decimals,
-
-        -- Determine transaction type
-        case
-            when p.from_address = '0x0000000000000000000000000000000000000000' then 'mint'
-            when p.to_address = '0x0000000000000000000000000000000000000000' then 'burn'
-            else 'transfer'
-        end as transaction_type,
-
-        -- Convert to decimal amount using actual decimals from dim_stablecoin
-        -- For stablecoins, amount ≈ USD value. TODO: have dim_price table
-
-        {{ convert_token_amount('s.amount_raw', 'COALESCE(d.decimals, 18)', 2) }} as amount
-
-    from parsed as p
-    left join stg_transfer as s
-        on
-            p.transaction_hash = SPLIT_PART(s.id, '_', 1)
-            and p.log_index = SPLIT_PART(s.id, '_', 2)::INTEGER
-    left join dim_stablecoin as d
-        on
-            LOWER(p.contract_address) = LOWER(d.contract_address)
-            and p.chain = d.chain
+    from int_all_transfer
+    -- Exclude mint (from zero address) and burn (to zero address) transactions
+    where from_address != '0x0000000000000000000000000000000000000000'
+      and to_address != '0x0000000000000000000000000000000000000000'
 )
 
-select
-    transaction_hash,
-    -- log_index,
-    date_key,
-    -- block_number,
-    contract_address,
-    chain,
-    from_address,
-    to_address,
-    transaction_type,
-    -- symbol,
-    -- name,
-    -- decimals,
-    amount,
-
-    -- Calculations last (ST06: simple targets before calculations)
-    CONVERT_TIMEZONE('UTC', block_timestamp) as block_timestamp,
-
-    -- Audit column to track incremental runs
-    CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) as dbt_loaded_at
-from enriched
+select * from final
