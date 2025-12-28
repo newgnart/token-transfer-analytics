@@ -136,7 +136,7 @@ class SnowflakeClient(BaseDatabaseClient):
             user=cls._get_env_var("SNOWFLAKE_USER"),
             authenticator=cls._get_env_var("SNOWFLAKE_AUTHENTICATOR"),
             private_key_file=os.path.expanduser(
-                cls._get_env_var("SNOWFLAKE_PRIVATE_KEY_PATH")
+                cls._get_env_var("SNOWFLAKE_PRIVATE_KEY_FILE")
             ),
             warehouse=cls._get_env_var("SNOWFLAKE_WAREHOUSE"),
             database=cls._get_env_var("SNOWFLAKE_DATABASE"),

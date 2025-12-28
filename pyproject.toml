@@ -17,12 +17,14 @@ dependencies = [
     "dbt-postgres>=1.9.1",
     "dbt-snowflake>=1.10.2",
     "dlt[postgres]>=1.17.0",
+    "hypersync>=0.8.5",
     "jupyter>=1.1.1",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.6.22",
     "pandas>=2.3.3",
     "polars>=1.33.1",
-    "psycopg>=3.2.10",
+    # psycopg is provided by dlt[postgres] and dbt-postgres (psycopg2-binary)
+    # Explicitly installing psycopg v3 causes conflicts with dbt-postgres
     "pyarrow>=21.0.0",
     "python-dotenv>=1.0.0",
     "requests>=2.32.0",

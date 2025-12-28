@@ -20,13 +20,13 @@ x-airflow-common: &airflow-common
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     AIRFLOW_CONFIG: "/opt/airflow/config/airflow.cfg"
   volumes:
-    - ./dags:/opt/airflow/dags
-    - ./logs:/opt/airflow/logs
-    - ./config:/opt/airflow/config
-    - ./plugins:/opt/airflow/plugins
-    - ./requirements.txt:/requirements.txt
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/config:/opt/airflow/config
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./airflow/requirements.txt:/requirements.txt
     - ./.secret:/opt/airflow/.secret
-    - ./dbt_sf:/opt/airflow/dbt_sf
+    - ./dbt_project:/opt/airflow/dbt_project
   user: "${AIRFLOW_UID:-50000}:0"
   networks:
     - lab_kafka_network

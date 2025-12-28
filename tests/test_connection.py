@@ -37,7 +37,7 @@ def test_postgres_connection():
 
 
 @pytest.mark.skipif(
-    not os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH"),
+    not os.getenv("SNOWFLAKE_PRIVATE_KEY_FILE"),
     reason="Snowflake credentials not configured (SNOWFLAKE_PRIVATE_KEY_PATH not set)",
 )
 def test_snowflake_connection():
