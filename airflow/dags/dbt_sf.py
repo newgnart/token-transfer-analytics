@@ -32,8 +32,6 @@ def get_dbt_snowflake_env_vars():
     private_key = (
         base64.b64decode(private_key_b64).decode("utf-8") if private_key_b64 else ""
     )
-    print(conn)
-    # print(conn.keys())
 
     return {
         "SNOWFLAKE_ACCOUNT": extra.get("account", ""),

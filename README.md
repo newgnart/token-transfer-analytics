@@ -1,75 +1,73 @@
 # Stables Analytics
 
-Production-grade ELT pipeline for on-chain stablecoin analytics. Built for [Foundry AI Academy](https://www.foundry.academy/) Data & AI Engineering program.
+**Real-time and batch ELT pipeline for Ethereum event analytics**
 
-**Pipeline**: `HyperSync GraphQL → PostgreSQL/Snowflake → dbt → Analytics`
 
-## Quick Start
+## What It Does
 
-```bash
-# Setup
-docker-compose up -d
-uv sync
-cp .env.example .env
+This pipeline processes Ethereum smart contract events (ERC-20 token transfers, mints, burns) through two complementary data layers:
 
-# Extract blockchain data via GraphQL
-# Run the indexer separately: https://github.com/newgnart/envio-stablecoins
-uv run python scripts/el/extract_graphql.py --from_block 18500000 --to_block 20000000 -v
+**Speed Layer (Streaming)**
+`HyperSync GraphQL → Kafka → PostgreSQL/Snowflake → Airflow → dbt`
 
-# Load to database
-uv run python scripts/el/load.py -f .data/raw/data_*.parquet -c postgres -s raw -t raw_transfer -w append
+Near real-time event streaming with Kafka-based ingestion, orchestrated by Airflow for scheduled batch consumption.
 
-# Transform with dbt
-cd dbt_project && dbt run
-```
+**Batch Layer (Historical)**
+`HyperSync GraphQL → Parquet → PostgreSQL/Snowflake → dbt → Analytics`
 
-## Architecture
+Historical data extraction using HyperSync's high-performance GraphQL API, optimized for large-scale blockchain data retrieval.
 
-```
-HyperSync GraphQL API → Parquet Files → PostgreSQL/Snowflake → dbt → Analytics Tables
-```
+## Architecture Highlights
 
-**Key Components:**
+**Event-Driven Streaming**: Kafka producer continuously streams blockchain events from GraphQL indexer; Airflow orchestrates consumption in 10-minute intervals for controlled database loading.
 
-- **Extract**: High-performance GraphQL API (HyperSync) for blockchain data with block-range filtering
-- **Load**: Pluggable loaders for PostgreSQL (dev) and Snowflake (prod) with `append`/`replace`/`merge` modes
-- **Transform**: dbt three-tier modeling (Staging → Intermediate → Marts) with SCD Type 2 support
-- **Migrate**: PostgreSQL to Snowflake data transfer via `pg2sf_raw_transfer.py`
+**Multi-Target Loading**: Pluggable database clients supporting PostgreSQL (dev) and Snowflake (prod) with three write modes: `append`, `replace`, `merge` (upsert).
 
-### Project Structure
+**Three-Tier Transformation**: dbt models follow dimensional modeling with staging views, ephemeral intermediates, and materialized fact/dimension tables.
+
+**Incremental Processing**: dbt incremental models with `delete+insert` strategy for efficient processing of high-volume event data.
+
+**Historical Tracking**: SCD Type 2 snapshots for dimension tables, enabling point-in-time analysis.
+
+**Cross-Database Compatibility**: Custom dbt macros abstract database-specific functions (hex conversion, timestamps) across PostgreSQL and Snowflake.
+
+## Key Components
 
 ```
-scripts/el/           # Extract & Load scripts
-src/onchaindata/      # Python package (extraction, loading, database clients)
-dbt_project/          # dbt models, snapshots, macros
-docs/                 # MkDocs documentation
+airflow/              # Orchestration DAGs (Kafka consumer, dbt transforms)
+scripts/kafka/        # Producer/consumer for event streaming
+dbt_project/          # Three-tier transformation models
+  ├── 01_staging/     # Raw data cleanup (views)
+  ├── 02_intermediate/# Event parsing and filtering (ephemeral)
+  └── 03_mart/        # Analytics tables (fct_transfer, fct_mint, fct_burn)
 ```
 
-## Features
-
-- **High-Performance Extraction**: HyperSync GraphQL API for fast blockchain data retrieval
-- **Flexible Loading**: PostgreSQL & Snowflake support with multiple write modes
-- **Multi-Chain**: Ethereum, Polygon, BSC via configurable endpoints
-- **SCD Type 2**: Historical tracking for stablecoin metadata via dbt snapshots
-- **Cross-Database Migration**: Seamless PostgreSQL → Snowflake transfers
+**Data Models**:
+- `fct_transfer` - ERC-20 token transfer events (incremental)
+- `fct_mint` - Token minting events (zero address as sender)
+- `fct_burn` - Token burning events (zero address as recipient)
+- `dim_event` - Event signature reference dimension
 
 ## Tech Stack
 
-Python 3.11+ • SQL • Polars • dlt • PostgreSQL • Snowflake • dbt Core • Docker • uv
+**Extraction**: HyperSync GraphQL API, Python 3.11+, Polars
+**Streaming**: Apache Kafka, Confluent Kafka Python
+**Loading**: dlt (data load tool), PostgreSQL, Snowflake
+**Transformation**: dbt Core (PostgreSQL/Snowflake adapters)
+**Orchestration**: Apache Airflow
+**Infrastructure**: Docker Compose, uv package manager
 
-## Documentation
+## Getting Started
 
-- **Full Docs**: [https://newgnart.github.io/stables-analytics/](https://newgnart.github.io/stables-analytics/)
-- **Dev Guide**: [CLAUDE.md](CLAUDE.md)
+Comprehensive setup instructions and operational guides are available in:
+- **Developer Guide**: [CLAUDE.md](CLAUDE.md) - Commands, architecture, workflows
+- **Full Documentation**: [https://newgnart.github.io/stables-analytics/](https://newgnart.github.io/stables-analytics/)
 
-## Environment Setup
-
-Create `.env` file with database credentials:
-- `POSTGRES_*`: PostgreSQL connection details
-- `SNOWFLAKE_*`: (Optional) Snowflake connection details
-
-See `.env.example` for full configuration.
+Basic requirements:
+- Python 3.11+, Docker, uv
+- PostgreSQL (local) or Snowflake (production)
+- `.env` configuration (see `.env.example`)
 
 ---
 
-**License**: MIT • Educational capstone project
+**License**: MIT • Educational capstone project for Foundry AI Academy DAE2 cohort
