@@ -41,23 +41,23 @@ def get_dbt_snowflake_env_vars():
         "SNOWFLAKE_WAREHOUSE": extra.get("warehouse", ""),
         "SNOWFLAKE_DATABASE": extra.get("database", ""),
         "SNOWFLAKE_SCHEMA": conn.schema or "",
-        "SNOWFLAKE_PRIVATE_KEY_file": private_key,
-        "DBT_PROFILES_DIR": "/opt/airflow/dbt_sf",
-        "DBT_PROJECT_DIR": "/opt/airflow/dbt_sf",
+        "SNOWFLAKE_PRIVATE_KEY_FILE": private_key,
+        "DBT_PROFILES_DIR": "/opt/airflow/dbt_project",
+        "DBT_PROJECT_DIR": "/opt/airflow/dbt_project",
         "PATH": "/home/airflow/.local/bin:" + os.environ.get("PATH", ""),
     }
 
 
 @dag(
-    dag_id="capstone_dbt_orchestration",
-    schedule="0 2 * * *",  # Daily at 2 AM
+    dag_id="dbt_sf",
+    schedule=None,  # Disabled - triggered by orchestrate_load_and_dbt DAG
     start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
     tags=["capstone", "dbt", "orchestration"],
     max_active_runs=1,
     description="Simple dbt orchestration using bash commands - matches capstone implementation",
 )
-def capstone_dbt_orchestration():
+def dbt_sf():
     """
     ### Capstone dbt Orchestration DAG
 
@@ -73,11 +73,11 @@ def capstone_dbt_orchestration():
         Run dbt build using bash command.
         This matches exactly what's in the capstone project.
         """
-        return "cd dbt_project && dbt build"
+        return "dbt build"
 
     # Execute the task
     dbt_build()
 
 
 # Create the DAG instance
-capstone_dbt_orchestration()
+dbt_sf()

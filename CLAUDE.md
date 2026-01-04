@@ -33,58 +33,55 @@ The project follows an event-driven ELT (Extract, Load, Transform) pattern with 
 Apache Airflow orchestrates the entire pipeline with monitoring and error handling.
 
 **Key DAGs:**
-- `stables_connection_test` - Infrastructure health checks
-- `stables_kafka_consumer_dag` - Scheduled Kafka consumption (every 10 minutes)
-- `stables_kafka_monitoring_dag` - Monitors Kafka health and consumer lag (planned)
-- `stables_transform_dag` - Orchestrates dbt transformations (planned)
-- `stables_master_pipeline_dag` - End-to-end pipeline orchestration (planned)
+- `orchestrate_load_and_dbt` - Master orchestration DAG (daily at midnight UTC) - triggers log collection → dbt transformation
+- `collect_and_load_logs_dag` - Incremental log collection from HyperSync → Snowflake (triggered by master DAG)
+- `dbt_sf` - dbt transformation on Snowflake (triggered by master DAG)
 
 **Configuration:**
 - Airflow UI: http://localhost:8080 (airflow/airflow)
-- Connections managed via `scripts/setup_airflow_connections.sh`
+- Connections managed via `scripts/setup_airflow_postgres_connection.sh` and `scripts/setup_airflow_snowflake_connection.sh`
 - Environment variables in `.env`
 
-### 1. Streaming Layer (Kafka)
-**Location**: `scripts/kafka/`
+### 1. Data Extraction Layer
+**Location**: `scripts/raw_data/`
 
-Real-time data streaming from GraphQL indexer to PostgreSQL via Kafka.
+HyperSync GraphQL API integration for blockchain log collection.
 
-**Components:**
-- `producer.py` - Fetches from GraphQL API and publishes to Kafka topic (runs continuously in Docker)
-- `consumer.py` - Legacy standalone consumer (deprecated - use Airflow DAG instead)
-- `consume_batch.py` - Airflow-compatible batch consumer function
-- `data_generator.py` - GraphQL data fetching logic
-- `database.py` - PostgreSQL batch insert operations
-- `models.py` - Data models for transfer events
+**Scripts:**
+- `collect_logs_data.py` - One-time/historical log collection
+- `collect_logs_incremental.py` - Incremental collection (auto-detects latest block from existing files)
+- `get_events.py` - Extract event signatures and topic0 hashes from contract ABIs
 
 **Key Features:**
-- Continuous streaming from GraphQL indexer via producer
-- **Airflow-orchestrated consumption**: `stables_kafka_consumer_dag` runs every 10 minutes
-- Batch insertion for efficiency (configurable batch size)
-- Automatic topic creation
-- Consumer offset management
-- Target table: `raw.kafka_sink_raw_transfer`
+- Auto-detection of latest fetched block to prevent duplicates
+- Parquet output format for efficient storage
+- Integrated into Airflow DAG (`collect_and_load_logs_dag`) for automated daily runs
+- Environment variable: `HYPERSYNC_BEARER_TOKEN` required
 
-**Recommended Setup:**
+**Usage Examples:**
 ```bash
-# 1. Start producer (continuous streaming to Kafka)
-docker-compose -f docker-compose.kafka-app.yml up -d producer
+# One-time historical collection
+uv run python scripts/raw_data/collect_logs_data.py \
+  --contract 0x1234... \
+  --from-block 22269355 \
+  --to-block 24107494 \
+  --contract-name open_logs
 
-# 2. Enable Airflow DAG for scheduled consumption (via Airflow UI)
-# Enable: stables_kafka_consumer_dag (runs every 10 minutes)
+# Incremental collection (auto-detects from_block)
+uv run python scripts/raw_data/collect_logs_incremental.py \
+  --contract 0x1234... \
+  --prefix open_logs
 
-# 3. Monitor with Kafdrop UI
-http://localhost:9000
+# Extract event signatures from ABI
+uv run python scripts/raw_data/get_events.py \
+  --chainid 1 \
+  --contract 0x1234... \
+  --name open_logs
 ```
 
-**Legacy Standalone Consumer** (not recommended):
-```bash
-# Old approach - runs consumer as standalone Docker container
-docker-compose -f docker-compose.kafka-app.yml up -d consumer
-```
+See [scripts/raw_data/README.md](scripts/raw_data/README.md) for detailed documentation.
 
-### 2. Load Layer (Legacy - `scripts/load_file.py`)
-**Note**: This is the legacy batch loading approach. The project now uses Kafka streaming (see above).
+### 2. Load Layer (`scripts/load_file.py`)
 
 Unified loader script supporting both PostgreSQL and Snowflake with pluggable database clients.
 
@@ -93,8 +90,7 @@ Unified loader script supporting both PostgreSQL and Snowflake with pluggable da
 - Three write modes: `append`, `replace`, `merge` (upsert)
 - Uses DLT (data load tool) for efficient loading
 - Database clients in `scripts/utils/database_client.py`: `PostgresClient`, `SnowflakeClient`
-
-**Usage:** Primarily used for loading static reference data (e.g., stablecoin metadata CSV)
+- Used by `collect_and_load_logs_dag` to load collected logs to Snowflake
 
 **Arguments:**
 - `-f`: File path (Parquet or CSV)
@@ -150,21 +146,15 @@ cp .env.example .env
 # Edit .env with your credentials
 
 # Start infrastructure (modular approach)
-docker-compose up -d                                   # PostgreSQL
+docker-compose -f docker-compose.postgres.yml up -d    # PostgreSQL
 docker-compose -f docker-compose.kafka.yml up -d       # Kafka + Kafdrop UI
 docker-compose -f docker-compose.airflow.yml up -d     # Airflow
-docker-compose -f docker-compose.kafka-app.yml up -d   # Producer/Consumer
-
-# OR use unified compose (legacy)
-docker-compose -f docker-compose-unified.yml up -d
 ```
 
 **Docker Compose Files**:
-- `docker-compose.yml` - Base PostgreSQL database
-- `docker-compose.kafka.yml` - Kafka streaming infrastructure
+- `docker-compose.postgres.yml` - Base PostgreSQL database
+- `docker-compose.kafka.yml` - Kafka streaming infrastructure (includes Kafdrop UI)
 - `docker-compose.airflow.yml` - Airflow orchestration
-- `docker-compose.kafka-app.yml` - Application services (producer/consumer)
-- `docker-compose-unified.yml` - All-in-one (legacy, deprecated)
 
 ### Data Loading
 ```bash
@@ -247,18 +237,22 @@ dbt docs serve
 Required variables (see [.env.example](.env.example)):
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
 - `DB_SCHEMA`: Default schema for operations
-- `KAFKA_NETWORK_NAME`: Docker network name
+- `HYPERSYNC_BEARER_TOKEN`: HyperSync API authentication token
 
-Optional (for Snowflake):
+For Snowflake (production):
 - `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`
 - `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`
 - `SNOWFLAKE_PRIVATE_KEY_PATH`: Path to private key file (.p8 or .pem) for local development
 
+Optional:
+- `ETHERSCAN_API_KEY`: For ABI extraction via `get_events.py`
+
 ## Key Data Flows
 
-1. **HyperSync GraphQL → Parquet**: Extract blockchain data using external indexer to `.data/raw/*.parquet`
-2. **Parquet → PostgreSQL/Snowflake**: `load_file.py` loads into `raw` schema tables
-3. **Raw → dbt**: dbt models transform raw data through staging → marts
+1. **HyperSync GraphQL → Parquet**: Extract blockchain logs using `collect_logs_incremental.py` to `.data/*.parquet`
+2. **Parquet → Snowflake**: `load_file.py` loads into `raw` schema tables (automated via `collect_and_load_logs_dag`)
+3. **Raw → dbt → Marts**: dbt models transform raw data through staging → intermediate → mart layers (via `dbt_sf` DAG)
+4. **Orchestration**: `orchestrate_load_and_dbt` DAG runs daily to chain collection → loading → transformation
 
 ## SCD Type 2: Stablecoin Metadata Tracking
 
@@ -354,24 +348,11 @@ dbt_project/
 ### Setup
 
 **1. Start Infrastructure:**
-
-Choose either modular (recommended) or unified approach:
-
-**Modular Approach** (recommended):
 ```bash
 # Start services separately for better control
-docker-compose up -d                              # PostgreSQL
-docker-compose -f docker-compose.kafka.yml up -d  # Kafka
-docker-compose -f docker-compose.airflow.yml up -d # Airflow
-
-# Wait for Airflow to initialize (~2 minutes)
-docker logs -f stables-airflow-init
-```
-
-**Unified Approach** (legacy):
-```bash
-# Start all services at once
-docker-compose -f docker-compose-unified.yml up -d
+docker-compose -f docker-compose.postgres.yml up -d    # PostgreSQL
+docker-compose -f docker-compose.kafka.yml up -d       # Kafka (optional)
+docker-compose -f docker-compose.airflow.yml up -d     # Airflow
 
 # Wait for Airflow to initialize (~2 minutes)
 docker logs -f stables-airflow-init
@@ -379,61 +360,68 @@ docker logs -f stables-airflow-init
 
 **2. Configure Connections:**
 ```bash
-# Setup Airflow connections (Postgres, Snowflake)
-bash scripts/setup_airflow_connections.sh
+# Setup Airflow connections for PostgreSQL and Snowflake
+bash scripts/setup_airflow_postgres_connection.sh
+bash scripts/setup_airflow_snowflake_connection.sh
 ```
 
-**3. Verify Setup:**
+**3. Access Airflow UI:**
 ```bash
-# Access Airflow UI
+# Open Airflow UI
 open http://localhost:8080
 # Login: airflow / airflow
-
-# Enable and trigger connection test DAG
-# DAGs > stables_connection_test > Enable > Trigger
 ```
 
 ### Running the Pipeline
 
-**Recommended Workflow:**
+**Production Workflow (Snowflake):**
 ```bash
-# 1. Start Kafka producer (continuous streaming)
-docker-compose -f docker-compose.kafka-app.yml up -d producer
+# 1. Enable the master orchestration DAG
+# In Airflow UI: Enable orchestrate_load_and_dbt
 
-# 2. Enable Airflow DAGs in UI
-# - stables_kafka_consumer_dag (runs every 10 minutes automatically)
-# - stables_connection_test (run manually to verify setup)
+# 2. The DAG runs daily at midnight UTC and automatically:
+#    a. Collects incremental logs from HyperSync
+#    b. Loads them to Snowflake (raw.open_logs)
+#    c. Runs dbt transformations
 
-# 3. Monitor via Airflow UI and Kafdrop
-# Airflow: http://localhost:8080
-# Kafdrop: http://localhost:9000
+# 3. Monitor via Airflow UI
+# http://localhost:8080
 ```
 
-**Scheduled Orchestration:**
-- `stables_kafka_consumer_dag` runs every 10 minutes (consumes from Kafka → PostgreSQL)
-- `stables_transform_dag` runs hourly/triggered (planned)
-- `stables_master_pipeline_dag` runs daily at 2 AM (planned)
+**Manual Trigger:**
+```bash
+# Trigger the master DAG manually via UI or CLI
+docker exec stables-airflow-scheduler airflow dags trigger orchestrate_load_and_dbt
+```
 
 ### Key Airflow DAGs
 
 | DAG | Schedule | Purpose | Status |
 |-----|----------|---------|--------|
-| `stables_connection_test` | Manual | Verify infrastructure connectivity | ✅ Active |
-| `stables_kafka_consumer_dag` | Every 10 min | Consume from Kafka → PostgreSQL | ✅ Active |
-| `stables_kafka_monitoring_dag` | Every 10 min | Monitor Kafka health and consumer lag | 📋 Planned |
-| `stables_transform_dag` | Hourly/Triggered | Run dbt transformations | 📋 Planned |
-| `stables_master_pipeline_dag` | Daily 2 AM | End-to-end pipeline orchestration | 📋 Planned |
+| `orchestrate_load_and_dbt` | Daily (midnight UTC) | Master orchestration: log collection → dbt transformation | ✅ Active |
+| `collect_and_load_logs_dag` | Triggered | Incremental log collection from HyperSync → Snowflake | ✅ Active |
+| `dbt_sf` | Triggered | Run dbt transformations on Snowflake | ✅ Active |
 
-**Consumer DAG Details** (`stables_kafka_consumer_dag`):
-- **Schedule**: Every 10 minutes
-- **Max Duration**: 8 minutes per run (leaves 2-min buffer)
-- **Batch Size**: 100 messages per database insert
-- **Consumer Group**: `stables-airflow-consumer` (separate from standalone consumer)
+**Master DAG Details** (`orchestrate_load_and_dbt`):
+- **Schedule**: Daily at midnight UTC
 - **Tasks**:
-  1. Check Kafka connection and topic
-  2. Check PostgreSQL connection
-  3. Consume batch from Kafka and load to `raw.kafka_sink_raw_transfer`
-  4. Log statistics and verify data loaded
+  1. Trigger `collect_and_load_logs_dag` and wait for completion
+  2. Trigger `dbt_sf` for transformations
+- **Behavior**: Pipeline stops if log collection fails
+
+**Collection DAG Details** (`collect_and_load_logs_dag`):
+- **Contract**: `0x323c03c48660fE31186fa82c289b0766d331Ce21`
+- **Auto-detects** latest block from existing parquet files
+- **Output**: `.data/open_logs_{date}_{from_block}_{to_block}.parquet`
+- **Target**: Snowflake `raw.open_logs` table
+- **Tasks**:
+  1. Collect incremental logs from HyperSync
+  2. Load to Snowflake using `load_file.py`
+
+**dbt DAG Details** (`dbt_sf`):
+- **Command**: `dbt build` (runs models, tests, snapshots)
+- **Target**: Snowflake warehouse
+- **Environment**: Configured from Airflow `snowflake_default` connection
 
 ### Monitoring
 
@@ -442,7 +430,7 @@ docker-compose -f docker-compose.kafka-app.yml up -d producer
 - Logs for debugging
 - Connection management
 
-**Kafdrop (Kafka UI):** http://localhost:9000
+**Kafdrop (Kafka UI):** http://localhost:9000 (if Kafka is running)
 - Topic messages and partitions
 - Consumer group lag
 - Broker health
@@ -452,6 +440,11 @@ docker-compose -f docker-compose.kafka-app.yml up -d producer
 psql postgresql://postgres:postgres@localhost:5432/postgres
 ```
 
+**Snowflake:** Monitor via Snowflake web UI
+- Query history
+- Warehouse usage
+- Table statistics
+
 ### Troubleshooting
 
 **Airflow won't start:**
@@ -460,13 +453,9 @@ psql postgresql://postgres:postgres@localhost:5432/postgres
 docker logs stables-airflow-init
 docker logs stables-airflow-scheduler
 
-# Reset Airflow database (modular)
+# Reset Airflow database
 docker-compose -f docker-compose.airflow.yml down -v
 docker-compose -f docker-compose.airflow.yml up -d
-
-# OR reset with unified approach (legacy)
-docker-compose -f docker-compose-unified.yml down -v
-docker-compose -f docker-compose-unified.yml up -d
 ```
 
 **DAG not appearing:**
@@ -478,37 +467,49 @@ docker exec stables-airflow-scheduler airflow dags list-import-errors
 python airflow/dags/your_dag.py
 ```
 
-**Connection test fails:**
+**DAG fails with import errors:**
 ```bash
-# Verify services are running
-docker ps | grep stables
+# Check if required Python packages are installed in Airflow container
+docker exec stables-airflow-scheduler pip list | grep hypersync
+docker exec stables-airflow-scheduler pip list | grep polars
 
-# Check network connectivity
-docker exec stables-airflow-scheduler ping kafka-postgres
-docker exec stables-airflow-scheduler ping kafka
+# Rebuild Airflow image if needed (packages defined in airflow/requirements.txt)
+docker-compose -f docker-compose.airflow.yml build --no-cache
+docker-compose -f docker-compose.airflow.yml up -d
+```
+
+**Snowflake connection fails:**
+```bash
+# Test Snowflake connection
+docker exec stables-airflow-scheduler airflow connections get snowflake_default
+
+# Verify private key is properly encoded (should be base64)
+# Re-run setup script if needed
+bash scripts/setup_airflow_snowflake_connection.sh
 ```
 
 ## Project Structure
 
 - **airflow/**: Airflow DAGs and orchestration
-  - `dags/`: DAG definitions
-  - `plugins/`: Custom operators
+  - `dags/`: DAG definitions (`orchestrate_load_and_dbt.py`, `collect_load_logs.py`, `dbt_sf.py`)
   - `logs/`: Execution logs
-  - `config/`: Airflow configuration
+  - `requirements.txt`: Python dependencies for Airflow container
 - **scripts/**: Runnable Python scripts
-  - `kafka/`: Producer, consumer, and Kafka utilities
-  - `load_file.py`: Legacy batch loader
-  - `utils/database_client.py`: Database client abstractions
-  - `setup_airflow_connections.sh`: Airflow connection setup
+  - `raw_data/`: HyperSync log collection scripts
+  - `load_file.py`: Unified data loader (Parquet/CSV → PostgreSQL/Snowflake)
+  - `utils/database_client.py`: Database client abstractions (`PostgresClient`, `SnowflakeClient`)
+  - `setup_airflow_postgres_connection.sh`: PostgreSQL connection setup for Airflow
+  - `setup_airflow_snowflake_connection.sh`: Snowflake connection setup for Airflow
 - **dbt_project/**: dbt transformation layer
-- **.data/raw/**: Data files (Parquet, CSV)
+  - `models/01_staging/`: Staging views
+  - `models/02_intermediate/`: Ephemeral intermediate models
+  - `models/03_mart/`: Final analytics tables
+  - `snapshots/`: SCD Type 2 snapshots
+  - `macros/`: Custom SQL macros
+- **.data/**: Data files (Parquet, CSV) - created at runtime
 - **docs/**: MkDocs documentation
 - **Docker Compose files**:
-  - `docker-compose.yml`: Base PostgreSQL database
-  - `docker-compose.kafka.yml`: Kafka infrastructure
+  - `docker-compose.postgres.yml`: PostgreSQL database
+  - `docker-compose.kafka.yml`: Kafka infrastructure (optional)
   - `docker-compose.airflow.yml`: Airflow orchestration
-  - `docker-compose.kafka-app.yml`: Application services (producer/consumer)
-  - `docker-compose-unified.yml`: All-in-one (legacy, deprecated)
-- Always run Python with: `uv run python script.py`
-
-See [DOCKER-COMPOSE-GUIDE.md](DOCKER-COMPOSE-GUIDE.md) for detailed Docker Compose usage.
+- Always run Python scripts with: `uv run python script.py`

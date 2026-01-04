@@ -15,8 +15,8 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8282/execution/"
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
     # Timezone Configuration
-    AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Bangkok
-    TZ: Asia/Bangkok
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: UTC
+    TZ: UTC
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     AIRFLOW_CONFIG: "/opt/airflow/config/airflow.cfg"
   volumes:
@@ -27,6 +27,10 @@ x-airflow-common: &airflow-common
     - ./airflow/requirements.txt:/requirements.txt
     - ./.secret:/opt/airflow/.secret
     - ./dbt_project:/opt/airflow/dbt_project
+    - ./scripts:/opt/airflow/scripts
+    - ./.env:/opt/airflow/.env
+    - ./.data:/opt/airflow/.data
+    - ./.ssh:/opt/airflow/.ssh
   user: "${AIRFLOW_UID:-50000}:0"
   networks:
     - lab_kafka_network

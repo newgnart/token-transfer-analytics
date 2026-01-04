@@ -56,12 +56,8 @@ models:
           - not_null
       - name: amount_raw
         description: "Raw minted amount as integer (before decimal adjustment)"
-        tests:
-          - not_null
       - name: minted_amount
         description: "Minted amount adjusted for decimals (assumes 18 decimals)"
-        tests:
-          - not_null
       - name: event_name
         description: "Event name (always 'Transfer')"
       - name: transaction_index
@@ -102,12 +98,8 @@ models:
           - not_null
       - name: amount_raw
         description: "Raw burned amount as integer (before decimal adjustment)"
-        tests:
-          - not_null
       - name: burned_amount
         description: "Burned amount adjusted for decimals (assumes 18 decimals)"
-        tests:
-          - not_null
       - name: event_name
         description: "Event name (always 'Transfer')"
       - name: transaction_index

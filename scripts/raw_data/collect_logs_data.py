@@ -4,11 +4,67 @@ from dotenv import load_dotenv
 import os, logging
 import argparse
 import polars as pl
+from pathlib import Path
+import re
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def get_latest_fetched_block(prefix: str, data_dir: str = ".data") -> int | None:
+    """
+    Get the latest (maximum) block number from parquet files matching a prefix.
+
+    Args:
+        prefix: Prefix to search for (e.g., 'open_logs')
+        data_dir: Directory containing parquet files (default: '.data')
+
+    Returns:
+        Maximum block number found, or None if no matching files exist
+
+    Example:
+        >>> get_latest_fetched_block('open_logs')
+        24107494  # from open_logs_22269355_24107494.parquet
+    """
+    data_path = Path(data_dir)
+
+    if not data_path.exists():
+        logger.warning(f"Data directory does not exist: {data_dir}")
+        return None
+
+    # Find all parquet files matching the prefix
+    pattern = f"{prefix}_*.parquet"
+    matching_files = list(data_path.glob(pattern))
+
+    if not matching_files:
+        logger.info(f"No parquet files found with prefix: {prefix}")
+        return None
+
+    # Extract block numbers from filenames
+    # Expected format: prefix_fromBlock_toBlock.parquet
+    max_block = None
+    block_pattern = re.compile(rf"{re.escape(prefix)}_(\d+)_(\d+)\.parquet")
+
+    for file in matching_files:
+        match = block_pattern.match(file.name)
+        if match:
+            from_block = int(match.group(1))
+            to_block = int(match.group(2))
+
+            # Track the maximum to_block
+            if max_block is None or to_block > max_block:
+                max_block = to_block
+
+            logger.debug(f"Found file: {file.name} (blocks {from_block}-{to_block})")
+
+    if max_block:
+        logger.info(f"Latest fetched block for '{prefix}': {max_block}")
+    else:
+        logger.warning(f"No valid block numbers found in filenames for prefix: {prefix}")
+
+    return max_block
 
 
 def get_client():

@@ -34,13 +34,6 @@ models:
         description: "Second indexed parameter (hex string with 0x prefix)"
       - name: event_data
         description: "Non-indexed event parameters (hex string with 0x prefix)"
-      - name: _dlt_load_id
-        description: "DLT load identifier"
-      - name: _dlt_id
-        description: "DLT unique row identifier"
-        tests:
-          - unique
-          - not_null
 
   - name: stg_event_signature
     description: "Staging model for event signature lookup table"
@@ -54,10 +47,3 @@ models:
         description: "Human-readable event name (e.g., Transfer, Approval)"
       - name: event_signature
         description: "Full event signature (e.g., Transfer(address,address,uint256))"
-      - name: _dlt_load_id
-        description: "DLT load identifier"
-      - name: _dlt_id
-        description: "DLT unique row identifier"
-        tests:
-          - unique
-          - not_null
