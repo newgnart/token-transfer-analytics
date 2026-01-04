@@ -16,6 +16,24 @@ from scripts.utils.config import get_kafka_config
 from scripts.utils.logger import logger
 
 
+def transfer_alert(transfer: TransferData) -> None:
+    """
+    Dummy alert function to print transfer details.
+
+    TODO: Replace with meaningful alert logic (e.g., threshold checks, notifications).
+    """
+    logger.info(
+        f"🚨 TRANSFER ALERT 🚨\n"
+        f"  ID: {transfer.id}\n"
+        f"  Block: {transfer.block_number}\n"
+        f"  Timestamp: {transfer.timestamp}\n"
+        f"  Contract: {transfer.contract_address}\n"
+        f"  From: {transfer.from_address}\n"
+        f"  To: {transfer.to_address}\n"
+        f"  Value: {int(transfer.value) / 10 ** 18}"
+    )
+
+
 def main() -> None:
     """Main consumer loop - consumes from Kafka and loads to PostgreSQL."""
     load_dotenv()
@@ -39,7 +57,7 @@ def main() -> None:
     logger.info(
         f"Consumer config: group_id={consumer_config['group.id']}, "
         f"auto_commit={consumer_config['enable.auto.commit']}, "
-        f"batch_size={kafka_config.batch_size}"
+        f"mode=immediate (no batching)"
     )
     if kafka_config.max_records:
         logger.info(f"Max records limit: {kafka_config.max_records}")
@@ -50,35 +68,22 @@ def main() -> None:
 
     rows_written = 0
     messages_processed = 0
-    batch: list[TransferData] = []
-
-    def flush_batch() -> int:
-        """Flush current batch to database and return number of rows written."""
-        nonlocal batch
-        if not batch:
-            return 0
-
-        inserted = batch_insert_transfers(dsn, batch)
-        batch.clear()
-        return inserted
 
     try:
         while True:
             # Check max records limit
-            if kafka_config.max_records and messages_processed >= kafka_config.max_records:
+            if (
+                kafka_config.max_records
+                and messages_processed >= kafka_config.max_records
+            ):
                 logger.info(
-                    f"Reached max records limit ({kafka_config.max_records}). "
-                    "Flushing final batch and exiting."
+                    f"Reached max records limit ({kafka_config.max_records}). Exiting."
                 )
-                rows_written += flush_batch()
                 break
 
             msg = consumer.poll(1.0)
             if msg is None:
-                # No message available - flush batch if it exists
-                if batch:
-                    rows_written += flush_batch()
-                    logger.debug("Flushed batch during idle period")
+                # No message available
                 continue
 
             if msg.error():
@@ -92,7 +97,7 @@ def main() -> None:
                 # Parse event with data model
                 event = TransferEvent(**event_dict)
 
-                # Add to batch
+                # Create transfer data
                 transfer_data = TransferData(
                     id=event.id,
                     block_number=event.block_number,
@@ -102,11 +107,16 @@ def main() -> None:
                     to_address=event.to_address,
                     value=event.value,
                 )
-                batch.append(transfer_data)
 
-                # Flush batch when it reaches the configured size
-                if len(batch) >= kafka_config.batch_size:
-                    rows_written += flush_batch()
+                # Trigger alert for this transfer
+                transfer_alert(transfer_data)
+
+                # Insert immediately (no batching)
+                inserted = batch_insert_transfers(dsn, [transfer_data])
+                rows_written += inserted
+
+                # Log progress every 100 messages
+                if messages_processed % 100 == 0:
                     logger.info(
                         f"Progress: {messages_processed} messages processed, "
                         f"{rows_written} rows written"
@@ -118,8 +128,7 @@ def main() -> None:
                 logger.error(f"Error processing message: {e}", exc_info=True)
 
     except KeyboardInterrupt:
-        logger.info("Shutdown requested. Flushing final batch...")
-        rows_written += flush_batch()
+        logger.info("Shutdown requested...")
         logger.info(
             f"Final stats: {messages_processed} messages, {rows_written} rows written"
         )
