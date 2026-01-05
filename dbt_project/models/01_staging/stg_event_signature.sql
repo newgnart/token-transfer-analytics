@@ -10,8 +10,8 @@ casted as (
 
         {%- if target.type == 'postgres' %}
         -- DLT metadata (only available in PostgreSQL environment)
-        , _dlt_load_id
-        , _dlt_id
+            , _dlt_load_id,
+            _dlt_id
         {%- endif %}
     from source
 )

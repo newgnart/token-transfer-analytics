@@ -51,10 +51,9 @@ group_by_and_order_by_style = implicit
 
 # dbt templater configuration
 [sqlfluff:templater:dbt]
-# project_dir = ./dbt_sf
-# profiles_dir = ./dbt_sf
-# profile = dbt_sf
-target = ci
+project_dir = .
+profiles_dir = .
+target = test
 dbt_skip_compilation_error = True
 dbt_skip_connection_error = True
 

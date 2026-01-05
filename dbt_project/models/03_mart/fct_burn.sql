@@ -15,7 +15,7 @@ with int_all_transfer as (
     select * from {{ ref('int_all_transfer') }}
     {% if is_incremental() %}
     -- Only process new blocks since last run
-    where block_number > (select COALESCE(MAX(block_number), 0) from {{ this }})
+        where block_number > (select COALESCE(MAX(block_number), 0) from {{ this }})
     {% endif %}
 ),
 
@@ -31,28 +31,32 @@ final as (
         transaction_hash,
         log_index,
 
--- Generate date key for partitioning/filtering
--- TODO: Add block timestamp from blocks table when available
-{{ date_to_integer_key() }} as date_key,
+        -- Generate date key for partitioning/filtering
+        -- TODO: Add block timestamp from blocks table when available
+        {{ date_to_integer_key() }} as date_key,
 
--- Time dimension
-block_number, block_hash,
+        -- Time dimension
+        block_number,
+        block_hash,
 
--- Contract dimension
-contract_address,
+        -- Contract dimension
+        contract_address,
 
--- Burn source
-from_address as burned_from_address,
+        -- Burn source
+        from_address as burned_from_address,
 
--- Amount columns
-amount_raw, amount as burned_amount,
+        -- Amount columns
+        amount_raw,
+        amount as burned_amount,
 
--- Metadata
-event_name,
-transaction_index,
--- _dlt_load_id,
+        -- Metadata
+        event_name,
+        transaction_index,
+        -- _dlt_load_id,
 
--- Audit column to track incremental runs
-{{ current_timestamp_func() }} as dbt_loaded_at from burn_events )
+        -- Audit column to track incremental runs
+        {{ current_timestamp_func() }} as dbt_loaded_at
+    from burn_events
+)
 
 select * from final

@@ -14,7 +14,7 @@ with int_all_transfer as (
     select * from {{ ref('int_all_transfer') }}
     {% if is_incremental() %}
     -- Only process new blocks since last run
-    where block_number > (select COALESCE(MAX(block_number), 0) from {{ this }})
+        where block_number > (select COALESCE(MAX(block_number), 0) from {{ this }})
     {% endif %}
 ),
 
@@ -47,7 +47,7 @@ final as (
         event_name,
         transaction_index,
         {%- if target.type == 'postgres' %}
-        _dlt_load_id,
+            _dlt_load_id,
         {%- endif %}
 
         -- Audit column to track incremental runs
@@ -55,8 +55,9 @@ final as (
 
     from int_all_transfer
     -- Exclude mint (from zero address) and burn (to zero address) transactions
-    where from_address != '0x0000000000000000000000000000000000000000'
-      and to_address != '0x0000000000000000000000000000000000000000'
+    where
+        from_address != '0x0000000000000000000000000000000000000000'
+        and to_address != '0x0000000000000000000000000000000000000000'
 )
 
 select * from final
