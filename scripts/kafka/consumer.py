@@ -16,22 +16,25 @@ from scripts.utils.config import get_kafka_config
 from scripts.utils.logger import logger
 
 
-def transfer_alert(transfer: TransferData) -> None:
+def transfer_alert(transfer: TransferData, threshold: int = 10000) -> None:
     """
-    Dummy alert function to print transfer details.
+    Alert function for large stablecoin transfers (>= threshold tokens).
 
-    TODO: Replace with meaningful alert logic (e.g., threshold checks, notifications).
+    Only triggers when transfer value is >= threshold after converting from wei.
     """
-    logger.info(
-        f"🚨 TRANSFER ALERT 🚨\n"
-        f"  ID: {transfer.id}\n"
-        f"  Block: {transfer.block_number}\n"
-        f"  Timestamp: {transfer.timestamp}\n"
-        f"  Contract: {transfer.contract_address}\n"
-        f"  From: {transfer.from_address}\n"
-        f"  To: {transfer.to_address}\n"
-        f"  Value: {int(transfer.value) / 10 ** 18}"
-    )
+    value_in_tokens = int(transfer.value) / 10**18
+
+    if value_in_tokens >= threshold:
+        logger.info(
+            f"🚨 TRANSFER ALERT 🚨\n"
+            f"  ID: {transfer.id}\n"
+            f"  Block: {transfer.block_number}\n"
+            f"  Timestamp: {transfer.timestamp}\n"
+            f"  Contract: {transfer.contract_address}\n"
+            f"  From: {transfer.from_address}\n"
+            f"  To: {transfer.to_address}\n"
+            f"  Value: {value_in_tokens:,.2f}"
+        )
 
 
 def main() -> None:

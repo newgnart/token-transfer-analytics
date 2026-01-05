@@ -12,8 +12,8 @@
 #     http://localhost:9000
 #
 # Prerequisites:
-#   - Network: stables_analytics_network must exist
-#   - Run: docker network create stables_analytics_kafka_network (or start base docker-compose.yml first)
+#   - Network: network_01 must exist
+#   - Run: docker network create network_01 --driver bridge (or start postgres/airflow compose first)
 
 services:
   # ============================================================================
@@ -62,7 +62,7 @@ services:
       start_period: 60s
       timeout: 10s
     networks:
-      - stables_analytics_network
+      - network_01
     restart: unless-stopped
 
   # Kafka UI - Monitoring and Debugging
@@ -80,7 +80,7 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - stables_analytics_network
+      - network_01
     restart: unless-stopped
 
 volumes:
@@ -88,6 +88,6 @@ volumes:
     driver: local
 
 networks:
-  stables_analytics_network:
+  network_01:
     external: true
-    name: stables_analytics_network
+    driver: bridge
