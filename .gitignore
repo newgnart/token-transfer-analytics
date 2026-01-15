@@ -51,3 +51,4 @@ airflow/**/__pycache__/
 
 # SSH
 .ssh/
+.secret/

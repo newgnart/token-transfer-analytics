@@ -31,6 +31,7 @@ dependencies = [
     "rich>=14.1.0",
     "snowflake-connector-python>=3.17.4",
     "sqlalchemy>=2.0.43",
+    "langfuse>=2.59.5",
 ]
 
 [project.scripts]

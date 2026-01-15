@@ -193,3 +193,9 @@ class SnowflakeClient(BaseDatabaseClient):
             ]
 
         return dlt.destinations.snowflake(credentials=credentials)
+
+    def snowpark_session(self):
+        """Get Snowpark session for Snowflake."""
+        return snowflake.snowpark.Session.builder.configs(
+            self.connection_params
+        ).create()
