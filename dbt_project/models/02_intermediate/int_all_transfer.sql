@@ -94,7 +94,7 @@ final as (
 
         -- Convert to decimal assuming 18 decimals (standard ERC20)
         -- TODO: Join with token metadata to get actual decimals
-        (amount_raw::NUMERIC / POWER(10, 18))::NUMERIC(38, 18) as amount,
+        (amount_raw / POWER(10, 18)) as amount,
 
         -- Metadata
         event_name, transaction_index

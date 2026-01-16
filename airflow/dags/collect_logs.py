@@ -1,9 +1,8 @@
 """
-Airflow DAGs for incremental log collection and loading to Snowflake.
+Airflow DAG for incremental log collection from HyperSync.
 
-This module contains two DAGs:
-1. collect_logs_incremental_dag - Collects logs incrementally from HyperSync
-2. load_logs_to_snowflake_dag - Loads collected parquet files to Snowflake
+This DAG collects blockchain logs incrementally and saves them as parquet files.
+It is triggered by the orchestrate_load_and_dbt master DAG.
 """
 
 import os
@@ -106,7 +105,7 @@ def get_hypersync_client():
     )
 
 
-async def collect_logs(
+async def collect_logs_async(
     contract: str, from_block: int, to_block: int | None, data_dir: str
 ):
     """
@@ -137,37 +136,33 @@ async def collect_logs(
 
 
 # ============================================================================
-# Combined DAG: Collect Logs and Load to Snowflake
+# DAG: Collect Logs from HyperSync
 # ============================================================================
 
 
 @dag(
-    dag_id="collect_and_load_logs_dag",
-    schedule=None,  # Disabled - triggered by orchestrate_load_and_dbt DAG
+    dag_id="collect_logs",
+    schedule=None,  # Triggered by orchestrate_load_and_dbt DAG
     start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
-    tags=["hypersync", "logs", "incremental", "snowflake", "etl"],
+    tags=["hypersync", "logs", "incremental", "extract"],
     max_active_runs=1,
-    description="Incrementally collect blockchain logs from HyperSync and load to Snowflake",
+    description="Incrementally collect blockchain logs from HyperSync",
     params={
         "from_block": None,
         "to_block": None,
         "contract": "0x323c03c48660fE31186fa82c289b0766d331Ce21",
         "prefix": "open_logs",
-        "snowflake_schema": "raw",
-        "snowflake_table": "open_logs",
-        "snowflake_write_disposition": "append",
     },
 )
-def collect_and_load_logs_dag():
+def collect_logs():
     """
-    Combined ETL DAG: Collect logs from HyperSync and load to Snowflake.
+    Collect logs from HyperSync and save as parquet files.
 
     This DAG:
     1. Auto-detects the latest fetched block from existing files
     2. Collects new logs from that block to the current block
     3. Saves the result with today's date and block range in the filename
-    4. Loads the collected parquet file to Snowflake
 
     Parameters (configurable via UI or CLI):
     - from_block: Starting block number (None = auto-detect from existing files)
@@ -181,10 +176,8 @@ def collect_and_load_logs_dag():
         """
         Collect logs incrementally from the latest fetched block to the current block.
 
-        Uses DAG params that can be overridden via UI config or CLI.
-
         Returns:
-            Dictionary with collection metadata
+            Dictionary with collection metadata including output_file path
         """
         # Get parameters from DAG run config
         params = context["params"]
@@ -220,7 +213,7 @@ def collect_and_load_logs_dag():
         # Collect data to temporary file
         temp_file = Path(data_dir) / "logs.parquet"
         asyncio.run(
-            collect_logs(
+            collect_logs_async(
                 contract=contract,
                 from_block=from_block,
                 to_block=to_block,
@@ -273,45 +266,9 @@ def collect_and_load_logs_dag():
             print(f"Failed to process collected data: {e}")
             raise
 
-    @task.bash
-    def load_to_snowflake(collection_result: dict, **context) -> str:
-        """
-        Load parquet file directly to Snowflake table using load_file.py script.
-
-        Args:
-            collection_result: Result dict from collect_logs_incremental containing output_file path
-
-        Returns:
-            Bash command to execute
-        """
-        params = context["params"]
-        snowflake_schema = params.get("snowflake_schema", "raw")
-        snowflake_table = params.get("snowflake_table", "open_logs")
-        snowflake_write_disposition = params.get(
-            "snowflake_write_disposition", "append"
-        )
-
-        # Extract file path from collection result
-        file_path = collection_result.get("output_file")
-
-        if not file_path:
-            print("No new data collected, skipping Snowflake load")
-            return "echo 'No new data to load'"
-
-        return f"""
-        cd /opt/airflow && \
-        python scripts/load_file.py \
-            -f {file_path} \
-            -c snowflake \
-            -s {snowflake_schema} \
-            -t {snowflake_table} \
-            -w {snowflake_write_disposition} \
-        """
-
-    # Define task dependencies: Collect → Load
-    collection_result = collect_logs_incremental()
-    load_to_snowflake(collection_result)
+    # Execute task
+    collect_logs_incremental()
 
 
 # Create DAG instance
-collect_and_load_logs_dag()
+collect_logs()

@@ -11,11 +11,18 @@
 -- Built on top of int_all_transfer intermediate model
 
 
+{% if is_incremental() %}
+    {% set max_block_query %}
+        select COALESCE(MAX(block_number), 0) from {{ this }}
+    {% endset %}
+    {% set max_block = run_query(max_block_query).columns[0][0] %}
+{% endif %}
+
 with int_all_transfer as (
     select * from {{ ref('int_all_transfer') }}
     {% if is_incremental() %}
     -- Only process new blocks since last run
-        where block_number > (select COALESCE(MAX(block_number), 0) from {{ this }})
+        where block_number > {{ max_block }}
     {% endif %}
 ),
 
@@ -33,6 +40,9 @@ final as (
 
         -- Generate date key for partitioning/filtering
         {{ date_to_integer_key() }} as date_key,
+
+        -- Time dimension (needed for incremental)
+        block_number,
 
         -- Contract dimension
         contract_address,

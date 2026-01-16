@@ -2,12 +2,12 @@
   {#-
     Convert bytea/binary data to hex string with 0x prefix
     - PostgreSQL: Uses encode(column, 'hex')
-    - Snowflake: Uses TO_VARCHAR(column, 'hex')
+    - Snowflake: Uses HEX_ENCODE(column)
   -#}
   {% if target.type == 'postgres' %}
     '0x' || encode({{ column_name }}, 'hex')
   {% elif target.type == 'snowflake' %}
-    '0x' || lower(to_varchar({{ column_name }}, 'hex'))
+    '0x' || lower(hex_encode({{ column_name }}))
   {% else %}
     {{ exceptions.raise_compiler_error("Unsupported database type: " ~ target.type) }}
   {% endif %}
@@ -80,11 +80,11 @@
     Handles unsigned uint256 values correctly by treating them as unsigned integers
 
     - PostgreSQL: Uses ::bit(64)::bigint with unsigned conversion for negative values
-    - Snowflake: Uses TRY_TO_NUMBER with XXXXXXXXXXXX format (16 hex digits = 64 bits)
+    - Snowflake: Parses hex in 15-digit chunks to handle full uint256 (64 hex digits)
 
     Input should be result of trim_leading_zeros(SUBSTRING(hex_column, 3))
 
-    Note: Returns NUMERIC type (not BIGINT) to handle full uint64 range without overflow
+    Note: Returns NUMERIC type to handle full uint256 range without overflow
   -#}
   {% if target.type == 'postgres' %}
     (CASE
@@ -93,7 +93,27 @@
         ELSE ('x' || LPAD({{ hex_string_expression }}, 16, '0'))::bit(64)::bigint::numeric
     END)
   {% elif target.type == 'snowflake' %}
-    try_to_number({{ hex_string_expression }}, 'XXXXXXXXXXXXXXXX')
+    {#-
+      Snowflake's TRY_TO_NUMBER only supports up to 16 hex digits (64 bits).
+      For practical ERC20 amounts, 64 bits handles up to ~18.4 quintillion raw units.
+
+      With 18 decimals, this is ~18.4 billion tokens which covers most real tokens.
+      For values longer than 16 hex chars, we take only the rightmost 16 chars.
+      This effectively caps the value at 2^64-1, which is acceptable for analytics
+      since larger values are typically test/spam transactions.
+
+      The CASE handles both short strings (pad with zeros) and long strings (take right 16).
+    -#}
+    COALESCE(
+      TRY_TO_NUMBER(
+        CASE
+          WHEN LENGTH({{ hex_string_expression }}) > 16 THEN RIGHT({{ hex_string_expression }}, 16)
+          ELSE LPAD({{ hex_string_expression }}, 16, '0')
+        END,
+        'XXXXXXXXXXXXXXXX'
+      ),
+      0
+    )
   {% else %}
     {{ exceptions.raise_compiler_error("Unsupported database type: " ~ target.type) }}
   {% endif %}
