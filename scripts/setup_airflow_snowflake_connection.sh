@@ -37,8 +37,8 @@ fi
 
 echo "Setting up Snowflake connection for account: $SNOWFLAKE_ACCOUNT"
 
-# Read and base64 encode the private key
-PRIVATE_KEY_CONTENT=$(cat "$SNOWFLAKE_PRIVATE_KEY_FILE" | base64)
+# Read and base64 encode the private key (use -w 0 on Linux to disable line wrapping)
+PRIVATE_KEY_CONTENT=$(cat "$SNOWFLAKE_PRIVATE_KEY_FILE" | base64 -w 0 2>/dev/null || cat "$SNOWFLAKE_PRIVATE_KEY_FILE" | base64)
 
 # Build the extra JSON with all Snowflake parameters
 EXTRA_JSON=$(cat <<EOF

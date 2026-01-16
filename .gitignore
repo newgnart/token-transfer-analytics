@@ -36,6 +36,7 @@ TODO.md
 target/
 .user.yml
 dbt_packages/
+dbt_internal_packages/
 
 bin/
 

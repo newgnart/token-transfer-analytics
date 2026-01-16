@@ -74,7 +74,7 @@ services:
 
   airflow-apiserver:
     <<: *airflow-common
-    command: api-server
+    command: api-server --port 8282
     ports:
       - "8282:8282"
     healthcheck:
