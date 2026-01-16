@@ -232,6 +232,54 @@ dbt docs generate
 dbt docs serve
 ```
 
+### Testing
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific test file
+uv run pytest tests/test_connection.py
+
+# Run with verbose output
+uv run pytest -v
+```
+
+### Linting (dbt SQL)
+```bash
+# Lint dbt models with SQLFluff
+uv run sqlfluff lint dbt_project/models/
+
+# Fix auto-fixable issues
+uv run sqlfluff fix dbt_project/models/
+```
+
+### Kafka Streaming (Speed Layer)
+The project includes a Kafka-based streaming layer for near real-time event processing.
+
+**CLI Entry Points** (defined in pyproject.toml):
+```bash
+# Initialize Kafka schema/topics
+uv run kafka-init-schema
+
+# Start Kafka producer (streams events from HyperSync)
+uv run kafka-producer
+
+# Start Kafka consumer (writes to database)
+uv run kafka-consumer
+```
+
+**Direct Script Execution:**
+```bash
+# Producer - streams blockchain events to Kafka
+uv run python scripts/kafka/producer.py
+
+# Consumer - consumes from Kafka and loads to database
+uv run python scripts/kafka/consumer.py
+
+# Batch consumer (for Airflow integration)
+uv run python scripts/kafka/consume_batch.py
+```
+
 ## Environment Variables
 
 Required variables (see [.env.example](.env.example)):
