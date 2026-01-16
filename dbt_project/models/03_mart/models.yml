@@ -40,28 +40,16 @@ models:
         description: "Date dimension key in YYYYMMDD format"
         tests:
           - not_null
-      - name: block_number
-        description: "Block number where the mint occurred"
-        tests:
-          - not_null
-      - name: block_hash
-        description: "Block hash (hex string with 0x prefix)"
       - name: contract_address
         description: "Token contract address"
         tests:
           - not_null
-      - name: minted_to_address
+      - name: minting_address
         description: "Address receiving the minted tokens"
         tests:
           - not_null
-      - name: amount_raw
-        description: "Raw minted amount as integer (before decimal adjustment)"
       - name: minted_amount
         description: "Minted amount adjusted for decimals (assumes 18 decimals)"
-      - name: event_name
-        description: "Event name (always 'Transfer')"
-      - name: transaction_index
-        description: "Position of the transaction within the block"
       - name: dbt_loaded_at
         description: "Timestamp when record was loaded by dbt"
         tests:

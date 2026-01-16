@@ -27,32 +27,21 @@ mint_events as (
 
 final as (
     select
-        -- Keys
+        -- Keys for incremental processing
         transaction_hash,
         log_index,
 
         -- Generate date key for partitioning/filtering
-        -- TODO: Add block timestamp from blocks table when available
         {{ date_to_integer_key() }} as date_key,
-
-        -- Time dimension
-        block_number,
-        block_hash,
 
         -- Contract dimension
         contract_address,
 
         -- Mint destination
-        to_address as minted_to_address,
+        to_address as minting_address,
 
         -- Amount columns
-        amount_raw,
         amount as minted_amount,
-
-        -- Metadata
-        event_name,
-        transaction_index,
-        -- _dlt_load_id,
 
         -- Audit column to track incremental runs
         {{ current_timestamp_func() }} as dbt_loaded_at

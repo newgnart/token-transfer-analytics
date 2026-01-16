@@ -19,7 +19,7 @@ from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, StateGraph, MessagesState
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel
 from snowflake.core import Root
 from snowflake.core.cortex.lite_agent_service import AgentRunRequest
 from snowflake.snowpark import Session
@@ -37,7 +37,7 @@ load_dotenv(override=True)
 MAX_REPLANS = 3
 
 # Snowflake
-SEMANTIC_MODEL_FILE = f"@{os.getenv('SNOWFLAKE_DATABASE')}.MART/MINT.yaml"
+SEMANTIC_MODEL_FILE = f"@{os.getenv('SNOWFLAKE_DATABASE')}.{os.getenv('SNOWFLAKE_SCHEMA')}.{os.getenv('SNOWFLAKE_SEMANTIC_MODEL_STAGE', 'models')}/mint_semantic_model_2.yaml"
 
 
 # State Definition
@@ -98,10 +98,6 @@ class CortexAgentTool:
     name: str = "CortexAgent"
     description: str = "answers questions using data from fct_mint table"
     args_schema: Type[CortexAgentArgs] = CortexAgentArgs
-
-    _session: Session = PrivateAttr()
-    _root: Root = PrivateAttr()
-    _agent_service: Any = PrivateAttr()
 
     def __init__(self, session: Session):
         self._session = session

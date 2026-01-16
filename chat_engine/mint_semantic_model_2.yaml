@@ -1,0 +1,61 @@
+name: MINT_SEMANTIC
+tables:
+  - name: FCT_MINT
+    description: The table contains records of cryptocurrency minting transactions on a blockchain network. Each record represents a single minting event and includes details about the transaction, contract, minting address, and amount minted.
+    base_table:
+      database: DB_T21
+      schema: MART
+      table: FCT_MINT
+    dimensions:
+      - name: CONTRACT_ADDRESS
+        description: The unique hexadecimal identifier for a smart contract deployed on a blockchain network.
+        expr: CONTRACT_ADDRESS
+        data_type: VARCHAR
+        sample_values:
+          - '0x323c03c48660fe31186fa82c289b0766d331ce21'
+      - name: DATE_KEY
+        description: The calendar date represented as a numeric identifier.
+        expr: DATE_KEY
+        data_type: NUMBER
+        sample_values:
+          - '20260115'
+      - name: LOG_INDEX
+        description: The sequential position of a log entry within a transaction.
+        expr: LOG_INDEX
+        data_type: NUMBER
+        sample_values:
+          - '139'
+          - '306'
+          - '85'
+      - name: MINTING_ADDRESS
+        description: The blockchain address responsible for minting the token.
+        expr: MINTING_ADDRESS
+        data_type: VARCHAR
+        sample_values:
+          - '0xafd306005f5d1a8537be4960e6d23907b5b9383f'
+          - '0x2aea77c4757d897aae2710b8a60280777f504e8c'
+          - '0xe08d97e151473a848c3d9ca3f323cb720472d015'
+      - name: TRANSACTION_HASH
+        description: A unique cryptographic hash identifier for a blockchain transaction.
+        expr: TRANSACTION_HASH
+        data_type: VARCHAR
+        sample_values:
+          - '0xa261cf72209e561b3c7956e5a011338b021453eefb3579cbcb101ca8728bb00a'
+          - '0xd70f765965ffc21a54735a9078b67f2f34a8de774bfa0d6d589313e381dfaaa9'
+          - '0x97915be7744b4ea73e387e72069d9ad948bea3572da5d5c22ef533c5995e154f'
+    time_dimensions:
+      - name: DBT_LOADED_AT
+        description: The timestamp when the record was loaded by dbt into the database.
+        expr: DBT_LOADED_AT
+        data_type: TIMESTAMP_LTZ
+        sample_values:
+          - 2026-01-15T21:41:17.257+0000
+    facts:
+      - name: MINTED_AMOUNT
+        description: The amount of cryptocurrency tokens created through minting operations.
+        expr: MINTED_AMOUNT
+        data_type: NUMBER
+        sample_values:
+          - '16.193223051386894440'
+          - '0.085137837046295572'
+          - '0.000407018153615941'
