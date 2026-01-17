@@ -80,17 +80,6 @@ def chat_engine(query: str, enabled_agents: Optional[List[str]] = None):
     return graph.invoke(state)
 
 
-def visualize_graph():
-    """Display the graph structure (for Jupyter notebooks)."""
-    try:
-        from IPython.display import Image, display
-
-        graph = build_graph()
-        display(Image(graph.get_graph().draw_png()))
-    except ImportError:
-        print("IPython not available. Graph visualization skipped.")
-
-
 def main():
     """Main execution function with example queries."""
     # query1 = "What is openai's latest product?"

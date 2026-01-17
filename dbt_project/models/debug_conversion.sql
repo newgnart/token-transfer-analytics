@@ -1,6 +1,6 @@
 {{ config(materialized='view') }}
 
--- Debug model to check hex conversion
+-- Debug model to check hex conversion for Transfer events
 -- Run: dbt run --select debug_conversion --target prod
 
 with sample_data as (
