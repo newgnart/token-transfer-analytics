@@ -6,6 +6,7 @@ import os
 import psycopg
 import dlt
 import snowflake.connector
+from qdrant_client import QdrantClient
 
 
 class BaseDatabaseClient(ABC):
@@ -199,3 +200,26 @@ class SnowflakeClient(BaseDatabaseClient):
         return snowflake.snowpark.Session.builder.configs(
             self.connection_params
         ).create()
+
+
+qdrant_config = {
+    "host": os.getenv("QDRANT_HOST"),
+    "port": os.getenv("QDRANT_PORT"),
+    "api_key": os.getenv("QDRANT_API_KEY"),
+}
+
+
+def get_qdrant_client() -> QdrantClient:
+    """Get or create Qdrant client connection."""
+    if qdrant_config["host"] in ["localhost", "127.0.0.1"]:
+        _qdrant_client = QdrantClient(
+            host=qdrant_config["host"],
+            port=qdrant_config["port"],
+            prefer_grpc=False,
+            https=False,
+        )
+    else:
+        _qdrant_client = QdrantClient(
+            host=qdrant_config["host"], api_key=qdrant_config["api_key"]
+        )
+    return _qdrant_client

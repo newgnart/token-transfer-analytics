@@ -1,14 +1,3 @@
-"""
-### Capstone dbt Orchestration DAG
-A simple dbt orchestration DAG that matches the actual capstone implementation.
-Uses @task.bash with dbt build command, following the capstone pattern.
-
-This DAG demonstrates:
-- Simple dbt integration using bash commands
-- Environment variable configuration from Airflow connections
-- The recommended 1 task = 1 dbt pipeline approach
-"""
-
 import base64
 import json
 import os
