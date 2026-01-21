@@ -1,52 +1,60 @@
-# Stables Analytics Platform
+# Token Transfer Analytics
 
-A production-grade data analytics platform for on-chain stablecoin transactions, built as a capstone project for [Foundry AI Academy](https://www.foundry.academy/) Data & AI Engineering program.
+A production-grade ELT pipeline for on-chain stablecoin analytics, built as a capstone project for [Foundry AI Academy](https://www.foundry.academy/) Data & AI Engineering program.
 
-## Technical Overview
+## Architecture
 
-### Data Engineering Architecture
+![Architecture Diagram](assets/FAACapstone.drawio.svg)
 
-The platform implements a modern **ELT (Extract, Load, Transform)** pipeline optimized for blockchain data:
+The platform implements a **Lambda Architecture** with batch and speed layers:
+
+| Layer       | Source          | Processing    | Storage    | Purpose                                      |
+| ----------- | --------------- | ------------- | ---------- | -------------------------------------------- |
+| **Batch**   | HyperSync API   | Airflow → dbt | Snowflake  | Historical analytics, dimensional modeling   |
+| **Speed**   | GraphQL Indexer | Kafka         | PostgreSQL | Real-time alerts, low-latency queries        |
+| **Serving** | Both layers     | RAG + LLM     | -          | Natural language querying via chat interface |
+
+## Tech Stack
+
+| Component      | Technology                         |
+| -------------- | ---------------------------------- |
+| Extraction     | Python, HyperSync GraphQL API      |
+| Streaming      | Apache Kafka                       |
+| Storage        | PostgreSQL (dev), Snowflake (prod) |
+| Transformation | dbt Core                           |
+| Orchestration  | Apache Airflow                     |
+| Serving        | LlamaIndex, Qdrant, OpenAI         |
+| Infrastructure | Docker, uv                         |
+
+## Project Structure
 
 ```
-HyperSync GraphQL API → PostgreSQL/Snowflake → dbt Transformations → Analytics Tables
+├── airflow/           # DAGs for orchestration
+├── scripts/
+│   ├── raw_data/      # HyperSync data collection
+│   ├── kafka/         # Streaming producer/consumer
+│   └── load_file.py   # Unified data loader
+├── dbt_project/       # Transformation models
+│   ├── 01_staging/    # Raw data cleanup (views)
+│   ├── 02_intermediate/  # Business logic (ephemeral)
+│   └── 03_mart/       # Analytics tables
+└── chat_engine/       # RAG-based query interface
 ```
 
-**Key Engineering Components:**
+## Quick Start
 
-#### 1. **Extraction Layer** (`Python + GraphQL`)
-- High-performance blockchain data extraction via HyperSync GraphQL API
-- Block-range filtering with dynamic query generation (supports custom `from_block`/`to_block` parameters)
-- Batch mode for large historical extracts with automatic Parquet serialization
-- Streaming mode for real-time data ingestion directly to databases
-- Multi-chain support (Ethereum, Polygon, BSC) through configurable endpoints
+```bash
+# Install dependencies
+uv sync
 
-#### 2. **Loading Layer** (`dlt + SQL`)
-- Pluggable database clients supporting PostgreSQL and Snowflake
-- Multiple write modes: `append`, `replace`, `merge` (upsert) with composite key support, with dlt pipeline
-- Connection pooling and optimized batch loading for high-throughput ingestion
+# Start infrastructure
+docker-compose -f docker-compose.postgres.yml up -d
+docker-compose -f docker-compose.airflow.yml up -d
 
-#### 3. **Transformation Layer** (`dbt`)
-- Three-tier modeling: Staging (views) → Intermediate (ephemeral) → Marts (tables)
-- Slowly Changing Dimension (SCD Type 2) implementation via dbt snapshots for stablecoin metadata
-- Custom Ethereum macros for address extraction and uint256 conversion
-- Cross-database compatibility (PostgreSQL for dev, Snowflake for production)
+# Run batch pipeline
+uv run python scripts/raw_data/collect_logs_incremental.py --contract 0x... --prefix logs
+uv run python scripts/load_file.py -f .data/logs.parquet -c snowflake -s raw -t logs -w append
 
-#### 4. **Data Migration** (`Python`)
-- Block-range based PostgreSQL to Snowflake data transfer for cloud warehousing
-- Polars-powered efficient data transformation and loading
-
-### Tech Stack
-
-- **Languages**: Python 3.11+, SQL
-- **Data Processing**: Polars, Pandas, PyArrow, dlt
-- **Databases**: PostgreSQL, Snowflake
-- **Transformation**: dbt Core (Postgres/Snowflake adapters)
-- **Infrastructure**: Docker, uv (dependency management)
-- **Documentation**: MkDocs Material
-
-## Getting Started
-
-Detailed setup instructions and API reference available in the navigation menu.
-
-For development workflows, see [CLAUDE.md](https://github.com/newgnart/stables-analytics/blob/main/CLAUDE.md).
+# Run dbt transformations
+cd dbt_project && dbt run
+```
