@@ -6,7 +6,6 @@ import os
 import psycopg
 import dlt
 import snowflake.connector
-from qdrant_client import QdrantClient
 
 
 class BaseDatabaseClient(ABC):
@@ -209,8 +208,10 @@ qdrant_config = {
 }
 
 
-def get_qdrant_client() -> QdrantClient:
+def get_qdrant_client():
     """Get or create Qdrant client connection."""
+    from qdrant_client import QdrantClient
+
     if qdrant_config["host"] in ["localhost", "127.0.0.1"]:
         _qdrant_client = QdrantClient(
             host=qdrant_config["host"],

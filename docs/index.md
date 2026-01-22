@@ -1,6 +1,6 @@
 # Token Transfer Analytics
 
-A production-grade ELT pipeline for on-chain stablecoin analytics, built as a capstone project for [Foundry AI Academy](https://www.foundry.academy/) Data & AI Engineering program.
+An ELT pipeline for on-chain token transfer analytics, built as a capstone project for [Foundry AI Academy](https://www.foundry.academy/) Data & AI Engineering program.
 
 ## Architecture
 

@@ -201,7 +201,7 @@ def collect_logs():
                 )
 
             # Start from the next block after the latest fetched
-            from_block = latest_block
+            from_block = latest_block + 1
             print(f"Auto-detected starting block: {from_block}")
 
         print(f"=== Incremental Log Collection ===")

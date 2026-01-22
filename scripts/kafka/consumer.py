@@ -16,7 +16,7 @@ from scripts.utils.config import get_kafka_config
 from scripts.utils.logger import logger
 
 
-def transfer_alert(transfer: TransferData, threshold: int = 10000) -> None:
+def transfer_alert(transfer: TransferData, threshold: int = 10_000_000) -> None:
     """
     Alert function for large stablecoin transfers (>= threshold tokens).
 
@@ -118,8 +118,8 @@ def main() -> None:
                 inserted = batch_insert_transfers(dsn, [transfer_data])
                 rows_written += inserted
 
-                # Log progress every 100 messages
-                if messages_processed % 100 == 0:
+                # Log progress every 5000 messages
+                if messages_processed % 5000 == 0:
                     logger.info(
                         f"Progress: {messages_processed} messages processed, "
                         f"{rows_written} rows written"

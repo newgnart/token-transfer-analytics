@@ -1,73 +1,79 @@
-# Stables Analytics
+# Token Transfer Analytics
 
-**Real-time and batch ELT pipeline for Ethereum event analytics**
+An ELT pipeline for on-chain token transfer analytics, built as a capstone project for [Foundry AI Academy](https://www.foundry.academy/) Data & AI Engineering program.
 
+## Architecture
 
-## What It Does
+The platform implements a **Lambda Architecture** with batch and speed layers:
 
-This pipeline processes Ethereum smart contract events (ERC-20 token transfers, mints, burns) through two complementary data layers:
-
-**Speed Layer (Streaming)**
-`HyperSync GraphQL → Kafka → PostgreSQL/Snowflake → Airflow → dbt`
-
-Near real-time event streaming with Kafka-based ingestion, orchestrated by Airflow for scheduled batch consumption.
-
-**Batch Layer (Historical)**
-`HyperSync GraphQL → Parquet → PostgreSQL/Snowflake → dbt → Analytics`
-
-Historical data extraction using HyperSync's high-performance GraphQL API, optimized for large-scale blockchain data retrieval.
-
-## Architecture Highlights
-
-**Event-Driven Streaming**: Kafka producer continuously streams blockchain events from GraphQL indexer; Airflow orchestrates consumption in 10-minute intervals for controlled database loading.
-
-**Multi-Target Loading**: Pluggable database clients supporting PostgreSQL (dev) and Snowflake (prod) with three write modes: `append`, `replace`, `merge` (upsert).
-
-**Three-Tier Transformation**: dbt models follow dimensional modeling with staging views, ephemeral intermediates, and materialized fact/dimension tables.
-
-**Incremental Processing**: dbt incremental models with `delete+insert` strategy for efficient processing of high-volume event data.
-
-**Historical Tracking**: SCD Type 2 snapshots for dimension tables, enabling point-in-time analysis.
-
-**Cross-Database Compatibility**: Custom dbt macros abstract database-specific functions (hex conversion, timestamps) across PostgreSQL and Snowflake.
-
-## Key Components
-
-```
-airflow/              # Orchestration DAGs (Kafka consumer, dbt transforms)
-scripts/kafka/        # Producer/consumer for event streaming
-dbt_project/          # Three-tier transformation models
-  ├── 01_staging/     # Raw data cleanup (views)
-  ├── 02_intermediate/# Event parsing and filtering (ephemeral)
-  └── 03_mart/        # Analytics tables (fct_transfer, fct_mint, fct_burn)
-```
-
-**Data Models**:
-- `fct_transfer` - ERC-20 token transfer events (incremental)
-- `fct_mint` - Token minting events (zero address as sender)
-- `fct_burn` - Token burning events (zero address as recipient)
-- `dim_event` - Event signature reference dimension
+| Layer       | Source          | Processing    | Storage    | Purpose                                    |
+| ----------- | --------------- | ------------- | ---------- | ------------------------------------------ |
+| **Batch**   | HyperSync API   | Airflow → dbt | Snowflake  | Historical analytics, dimensional modeling |
+| **Speed**   | GraphQL Indexer | Kafka         | PostgreSQL | Real-time alerts, low-latency queries      |
+| **Serving** | Both layers     | RAG + LLM     | -          | Natural language querying via chat         |
 
 ## Tech Stack
 
-**Extraction**: HyperSync GraphQL API, Python 3.11+, Polars
-**Streaming**: Apache Kafka, Confluent Kafka Python
-**Loading**: dlt (data load tool), PostgreSQL, Snowflake
-**Transformation**: dbt Core (PostgreSQL/Snowflake adapters)
-**Orchestration**: Apache Airflow
-**Infrastructure**: Docker Compose, uv package manager
+| Component      | Technology                         |
+| -------------- | ---------------------------------- |
+| Extraction     | Python, HyperSync GraphQL API      |
+| Streaming      | Apache Kafka                       |
+| Storage        | PostgreSQL (dev), Snowflake (prod) |
+| Transformation | dbt Core                           |
+| Orchestration  | Apache Airflow                     |
+| Serving        | LlamaIndex, Qdrant, OpenAI         |
+| Infrastructure | Docker, uv                         |
 
-## Getting Started
+## Data Models
 
-Comprehensive setup instructions and operational guides are available in:
-- **Developer Guide**: [CLAUDE.md](CLAUDE.md) - Commands, architecture, workflows
-- **Full Documentation**: [https://newgnart.github.io/stables-analytics/](https://newgnart.github.io/stables-analytics/)
+| Model          | Type      | Description                              |
+| -------------- | --------- | ---------------------------------------- |
+| `fct_transfer` | Fact      | ERC-20 token transfers (excludes mint/burn) |
+| `fct_mint`     | Fact      | Token minting (from zero address)        |
+| `fct_burn`     | Fact      | Token burning (to zero address)          |
+| `dim_event`    | Dimension | Event signature lookup with categories   |
 
-Basic requirements:
-- Python 3.11+, Docker, uv
+## Project Structure
+
+```
+├── airflow/              # Orchestration DAGs
+├── scripts/
+│   ├── raw_data/         # HyperSync data collection
+│   ├── kafka/            # Streaming producer/consumer
+│   └── load_file.py      # Unified data loader
+├── dbt_project/          # Transformation models
+│   ├── 01_staging/       # Raw data cleanup (views)
+│   ├── 02_intermediate/  # Business logic (ephemeral)
+│   └── 03_mart/          # Analytics tables
+└── chat_engine/          # RAG-based query interface
+```
+
+## Quick Start
+
+```bash
+# Install dependencies
+uv sync
+
+# Start infrastructure
+docker-compose -f docker-compose.postgres.yml up -d
+docker-compose -f docker-compose.airflow.yml up -d
+
+# Run dbt transformations
+cd dbt_project && dbt run
+```
+
+## Documentation
+
+- **Developer Guide**: [CLAUDE.md](CLAUDE.md)
+- **Full Documentation**: [newgnart.github.io/stables-analytics](https://newgnart.github.io/stables-analytics/)
+
+## Requirements
+
+- Python 3.11+
+- Docker
+- uv package manager
 - PostgreSQL (local) or Snowflake (production)
-- `.env` configuration (see `.env.example`)
 
 ---
 
-**License**: MIT • Educational capstone project for Foundry AI Academy DAE2 cohort
+**License**: MIT
