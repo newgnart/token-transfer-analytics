@@ -5,7 +5,7 @@ Planner Agent - Generates and revises execution plans.
 
 import json
 from typing import Literal, Any, Dict
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from langfuse import observe
 

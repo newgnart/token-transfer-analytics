@@ -53,3 +53,6 @@ airflow/**/__pycache__/
 # SSH
 .ssh/
 .secret/
+
+notebook/eda_files/
+notebook/eda.html

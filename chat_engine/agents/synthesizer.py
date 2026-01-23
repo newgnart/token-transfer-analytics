@@ -4,7 +4,7 @@ Synthesizer Agent - Generates final text summaries.
 """
 
 from typing import Literal
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.graph import END
 from langgraph.types import Command
 from langfuse import observe
