@@ -2,7 +2,7 @@ from typing import Optional, List
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from langfuse import observe
 
 from langgraph.graph import StateGraph, START

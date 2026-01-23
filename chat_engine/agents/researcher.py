@@ -4,7 +4,7 @@ Web Research Agent - Searches the web using Tavily.
 """
 
 from typing import Literal
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from langchain_tavily import TavilySearch
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command

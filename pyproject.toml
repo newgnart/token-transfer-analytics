@@ -28,10 +28,21 @@ dependencies = [
     "pyarrow>=21.0.0",
     "python-dotenv>=1.0.0",
     "requests>=2.32.0",
-    "rich>=14.1.0",
+    "rich>=13.6.0",
     "snowflake-connector-python>=3.17.4",
     "sqlalchemy>=2.0.43",
     "langfuse>=2.59.5",
+    "langchain>=1.2.6",
+    "langchain-openai>=1.1.7",
+    "langchain-core>=1.2.7",
+    "langgraph>=1.0.7",
+    "langchain-tavily>=0.2.17",
+    "langchain-experimental>=0.4.1",
+    "qdrant-client>=1.16.2",
+    "psycopg>=3.3.2",
+    "matplotlib>=3.10.8",
+    "snowflake-core>=1.11.0",
+    "snowflake-snowpark-python>=1.44.0",
 ]
 
 [project.scripts]

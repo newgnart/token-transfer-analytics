@@ -7,7 +7,7 @@ import json
 import os
 from typing import Literal, Type
 from dotenv import load_dotenv
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command
 from langfuse import observe
