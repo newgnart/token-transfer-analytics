@@ -1,3 +1,5 @@
+
+
 {{
     config(
         materialized='incremental',
@@ -9,6 +11,7 @@
 
 -- Fact table for Mint events (Transfer events where from_address = 0x0)
 -- Built on top of int_all_transfer intermediate model
+-- test ci
 
 
 {% if is_incremental() %}
